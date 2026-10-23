@@ -137,6 +137,12 @@ async def capabilities() -> list[dict]:
     return [v.info().model_dump() for v in registry.list_variants()]
 
 
+@app.get("/v1/matrix")
+async def matrix() -> list[dict]:
+    """能力矩阵：目标全集 18 项 × 成熟度等级（= 变体 maturity 最大值），前端「矩阵」tab 用。"""
+    return registry.matrix()
+
+
 @app.post("/v1/jobs", response_model=Job, status_code=202)
 async def create_job(req: JobRequest) -> Job:
     spec = registry.get(req.capability, req.variant)

@@ -8,6 +8,7 @@ description: >-
 model_id: moss-image-sft-int8
 workflow: workflow.json
 engine: comfy
+maturity: L2
 
 inputs:
   prompt:

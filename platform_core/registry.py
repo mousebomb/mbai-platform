@@ -62,6 +62,24 @@ class ModelSpec(BaseModel):
         return settings.models_dir / main
 
 
+class CapabilitySpec(BaseModel):
+    """catalog.yaml 里声明的一项能力。
+
+    目标全集：没接的能力也写在这里，首页矩阵才能诚实地显示「缺什么」。
+    """
+
+    id: str
+    title: str = ""
+    # 计划阶段 M1~M4，对应 docs/platform-plan-v2.md §6 的分阶段
+    stage: str = "M3"
+    note: str = ""
+
+
+# 等级排序权重：数值越大越成熟，matrix 按它降序
+MATURITY_RANK = {"L0": 0, "L1": 1, "L2": 2, "L3": 3}
+MATURITY_LEVELS = ("L0", "L1", "L2", "L3")
+
+
 class VariantSpec(BaseModel):
     capability: str
     variant: str
@@ -73,6 +91,12 @@ class VariantSpec(BaseModel):
     workflow: str | None = None
     # 引擎适配器 kind：接第二个引擎时新变体写别的值，控制平面不动
     engine: str = "comfy"
+    # 成熟度等级（能力矩阵的核心字段，非法值由 Literal 拒绝并落进 registry.errors）：
+    #   L0 declared   记了清单，没接
+    #   L1 wired      能跑，参数裸露，无预设
+    #   L2 tuned      有预设/默认参数/失败处理
+    #   L3 validated  golden test + 质量对比 + 文档
+    maturity: Literal["L0", "L1", "L2", "L3"] = "L1"
     # CLI 引擎的启动配置（command 占位符列表 / timeout_sec / output_ext）
     cli: dict[str, Any] | None = None
     inputs: dict[str, Any] = Field(default_factory=dict)
@@ -114,14 +138,17 @@ class Registry:
         self.models_dir = self.root / "models"
         self.models: dict[str, ModelSpec] = {}
         self.variants: dict[str, VariantSpec] = {}
+        self.catalog: dict[str, CapabilitySpec] = {}
         self.errors: list[str] = []
 
     def load(self) -> "Registry":
         self.models.clear()
         self.variants.clear()
+        self.catalog.clear()
         self.errors.clear()
         self._load_models()
         self._load_variants()
+        self._load_catalog()
         self._validate()
         return self
 
@@ -141,6 +168,19 @@ class Registry:
                 self.variants[self.key(spec.capability, spec.variant)] = spec
             except Exception as e:  # noqa: BLE001
                 self.errors.append(f"能力清单解析失败 {f}: {e}")
+
+    def _load_catalog(self) -> None:
+        """能力目标全集：只声明「存在什么能力」，不负责接线，等级由变体推导。"""
+        path = self.capabilities_dir / "catalog.yaml"
+        if not path.exists():
+            return
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            for item in raw.get("capabilities") or []:
+                spec = CapabilitySpec(**item)
+                self.catalog[spec.id] = spec
+        except Exception as e:  # noqa: BLE001
+            self.errors.append(f"能力清单解析失败 {path}: {e}")
 
     def _validate(self) -> None:
         for key, v in self.variants.items():
@@ -162,6 +202,52 @@ class Registry:
 
     def list_variants(self) -> list[VariantSpec]:
         return list(self.variants.values())
+
+    def matrix(self) -> list[dict[str, Any]]:
+        """首页能力矩阵：catalog 目标全集 + 注册表里有变体但 catalog 没写的兜底。
+
+        某能力的等级 = 它所有变体 maturity 的最大值；没有变体的 = L0。
+        排序：等级降序，同等级按 capability 名升序。
+        """
+        rows: dict[str, dict[str, Any]] = {
+            cid: {
+                "capability": cid,
+                "title": spec.title or cid,
+                "stage": spec.stage,
+                "note": spec.note,
+                "variants": [],
+            }
+            for cid, spec in self.catalog.items()
+        }
+        # 有变体但 catalog 没声明的能力也要出现在矩阵里，别丢数据
+        by_cap: dict[str, list[VariantSpec]] = {}
+        for v in self.variants.values():
+            by_cap.setdefault(v.capability, []).append(v)
+        for cid in by_cap:
+            if cid not in rows:
+                rows[cid] = {
+                    "capability": cid,
+                    "title": cid,
+                    "stage": "",
+                    "note": "",
+                    "variants": [],
+                }
+
+        for cid, row in rows.items():
+            vs = sorted(by_cap.get(cid, []), key=lambda v: v.variant)
+            row["variants"] = [
+                {
+                    "variant": v.variant,
+                    "maturity": v.maturity,
+                    "engine": v.engine,
+                    "model_id": v.model_id,
+                }
+                for v in vs
+            ]
+            best = max((MATURITY_RANK[v.maturity] for v in vs), default=0)
+            row["level"] = MATURITY_LEVELS[best]
+
+        return sorted(rows.values(), key=lambda r: (-MATURITY_RANK[r["level"]], r["capability"]))
 
 
 registry = Registry().load()

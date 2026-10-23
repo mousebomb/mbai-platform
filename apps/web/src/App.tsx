@@ -3,10 +3,12 @@ import {
   api,
   artifactUrl,
   type Asset,
+  type CapabilityMatrixRow,
   type Health,
   type InputSpec,
   type Job,
   type JobState,
+  type Maturity,
   type VariantInfo,
 } from "./api";
 
@@ -19,6 +21,8 @@ const STATE_LABEL: Record<JobState, string> = {
 };
 
 const TERMINAL: JobState[] = ["succeeded", "failed", "cancelled"];
+
+const LEVELS: Maturity[] = ["L0", "L1", "L2", "L3"];
 
 function duration(job: Job): string {
   const end = job.finished_at ?? (job.state === "running" ? Date.now() / 1000 : null);
@@ -39,7 +43,8 @@ export default function App() {
   const [assets, setAssets] = useState<Record<string, Asset>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [tab, setTab] = useState<"jobs" | "gallery">("jobs");
+  const [matrix, setMatrix] = useState<CapabilityMatrixRow[]>([]);
+  const [tab, setTab] = useState<"jobs" | "gallery" | "matrix">("jobs");
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
 
@@ -69,6 +74,15 @@ export default function App() {
     } catch {
       setOffline(true);
       return null;
+    }
+  }, []);
+
+  // 能力矩阵：进「矩阵」tab 时刷新，其余时间不动
+  const loadMatrix = useCallback(async () => {
+    try {
+      setMatrix(await api.matrix());
+    } catch (e) {
+      setNotice(String(e));
     }
   }, []);
 
@@ -188,6 +202,13 @@ export default function App() {
     [jobs]
   );
 
+  // 顶部一行汇总：L0 x · L1 x · L2 x · L3 x，让「缺什么」一眼可见
+  const levelCounts = useMemo(() => {
+    const c: Record<Maturity, number> = { L0: 0, L1: 0, L2: 0, L3: 0 };
+    for (const row of matrix) c[row.level] += 1;
+    return c;
+  }, [matrix]);
+
   const gpu = health?.engine.devices?.[0];
   const engineOk = health?.engine.ok ?? false;
 
@@ -264,6 +285,15 @@ export default function App() {
             <button className={tab === "gallery" ? "tab active" : "tab"} onClick={() => setTab("gallery")}>
               作品 <span className="count">{gallery.length}</span>
             </button>
+            <button
+              className={tab === "matrix" ? "tab active" : "tab"}
+              onClick={() => {
+                setTab("matrix");
+                loadMatrix();
+              }}
+            >
+              矩阵 <span className="count">{matrix.length}</span>
+            </button>
           </div>
 
           {tab === "jobs" ? (
@@ -273,7 +303,7 @@ export default function App() {
                 <JobRow key={job.id} job={job} onCancel={() => cancel(job.id)} onDelete={() => remove(job.id)} />
               ))}
             </div>
-          ) : (
+          ) : tab === "gallery" ? (
             <div className="gallery">
               {gallery.length === 0 && <div className="empty">还没有作品</div>}
               {gallery.map(({ job, artifact }) => (
@@ -294,6 +324,41 @@ export default function App() {
                   </button>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="matrix">
+              <div className="matrix-summary">
+                {LEVELS.map((lv) => (
+                  <span key={lv} className={`m-badge ${lv}`}>
+                    {lv} × {levelCounts[lv]}
+                  </span>
+                ))}
+              </div>
+              <div className="matrix-grid">
+                {matrix.length === 0 && <div className="empty">还没有矩阵数据</div>}
+                {matrix.map((row) => (
+                  <div key={row.capability} className="mcard">
+                    <div className="mcard-head">
+                      <span className="m-title">{row.title}</span>
+                      <span className={`m-badge ${row.level}`}>{row.level}</span>
+                    </div>
+                    <div className="m-sub">
+                      {row.stage && <span className="mstage">{row.stage}</span>}
+                      <span className="m-cap">{row.capability}</span>
+                    </div>
+                    {row.note && <p className="m-note">{row.note}</p>}
+                    {row.variants.length > 0 && (
+                      <div className="m-chips">
+                        {row.variants.map((v) => (
+                          <span key={v.variant} className="chip">
+                            {v.variant} · {v.engine}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </section>

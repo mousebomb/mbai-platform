@@ -9,7 +9,7 @@ import sys
 from .adapters import get_adapter
 from .comfy_client import ComfyClient
 from .contracts import Job, JobState
-from .registry import registry
+from .registry import MATURITY_LEVELS, registry
 from .service import store, worker
 from .settings import settings
 
@@ -32,6 +32,17 @@ async def _doctor() -> int:
             print(f"  {ERR} {e}")
     else:
         print(f"  {OK} {len(registry.variants)} 个能力变体，{len(registry.models)} 个模型")
+    print()
+
+    print("[矩阵]")
+    matrix = registry.matrix()
+    counts = {lv: 0 for lv in MATURITY_LEVELS}
+    for row in matrix:
+        counts[row["level"]] += 1
+    print(
+        f"  {OK} {len(matrix)} 项能力：L0 {counts['L0']} · L1 {counts['L1']} "
+        f"· L2 {counts['L2']} · L3 {counts['L3']}"
+    )
     print()
 
     print("[模型文件]")

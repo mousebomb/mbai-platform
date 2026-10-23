@@ -6,6 +6,7 @@ description: >-
   通用/写实向 4x 超分，realesrgan-x4plus 模型，本地 ncnn-vulkan 执行，不走 ComfyUI。
 model_id: realesrgan-x4plus
 engine: cli
+maturity: L1
 
 cli:
   command:

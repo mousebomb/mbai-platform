@@ -63,11 +63,31 @@ export interface Health {
   variants: number;
 }
 
+/** 成熟度等级：L0 清单 / L1 能跑 / L2 调优 / L3 验证 */
+export type Maturity = "L0" | "L1" | "L2" | "L3";
+
+export interface MatrixVariant {
+  variant: string;
+  maturity: Maturity;
+  engine: string;
+  model_id: string;
+}
+
+export interface CapabilityMatrixRow {
+  capability: string;
+  title: string;
+  level: Maturity;
+  stage: string;
+  note: string;
+  variants: MatrixVariant[];
+}
+
 const http = axios.create({ baseURL: "/v1", timeout: 20000 });
 
 export const api = {
   health: () => http.get<Health>("/health").then((r) => r.data),
   capabilities: () => http.get<VariantInfo[]>("/capabilities").then((r) => r.data),
+  matrix: () => http.get<CapabilityMatrixRow[]>("/matrix").then((r) => r.data),
   jobs: (limit = 50) => http.get<Job[]>("/jobs", { params: { limit } }).then((r) => r.data),
   createJob: (body: { capability: string; variant: string; params: Record<string, unknown> }) =>
     http.post<Job>("/jobs", body).then((r) => r.data),

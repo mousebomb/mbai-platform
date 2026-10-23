@@ -6,6 +6,7 @@ description: >-
   动漫向 4x 超分，realesr-animevideov3 模型，本地 ncnn-vulkan 执行，不走 ComfyUI。
 model_id: realesr-animevideov3
 engine: cli
+maturity: L1
 
 cli:
   command:

@@ -1,0 +1,76 @@
+# 能力目标全集：18 项，含尚未接入的（首页矩阵要诚实显示「缺什么」）。
+# 某能力的成熟度等级 = 它所有变体 maturity 的最大值；没有变体的 = L0。
+# stage 对应 docs/platform-plan-v2.md §6 的分阶段（M1~M4）。
+capabilities:
+  - id: image.txt2img
+    title: 文生图
+    stage: M1
+    note: 已有 2 个变体
+  - id: image.img2img
+    title: 参考图生图
+    stage: M2
+    note: 未接
+  - id: image.edit
+    title: 图像编辑
+    stage: M2
+    note: 未接
+  - id: image.layer_split
+    title: 图层分离
+    stage: M4
+    note: 模型在，12 GB 跑不动
+  - id: image.matting
+    title: 抠图
+    stage: M2
+    note: 未接
+  - id: image.inpaint
+    title: 蒙版重绘
+    stage: M2
+    note: 未接
+  - id: image.controlnet
+    title: ControlNet
+    stage: M4
+    note: 未接
+  - id: image.faceswap
+    title: 图片换脸
+    stage: M3
+    note: 未接
+  - id: image.upscale
+    title: 图片超分
+    stage: M1
+    note: 已有 2 个 CLI 变体
+  - id: image.face_restore
+    title: 人脸修复
+    stage: M4
+    note: 未接
+  - id: video.txt2video
+    title: 文生视频
+    stage: M3
+    note: 未接
+  - id: video.motion_transfer
+    title: 动作迁移
+    stage: M3
+    note: 已实测过，待接入
+  - id: video.faceswap
+    title: 视频换脸
+    stage: M3
+    note: 未接
+  - id: video.upscale
+    title: 视频超分
+    stage: M3
+    note: 未接
+  - id: video.frame_extend
+    title: 视频延展
+    stage: M3
+    note: 未接
+  - id: video.first_last_frame
+    title: 首尾帧
+    stage: M3
+    note: 未接
+  - id: audio.tts
+    title: 语音合成
+    stage: M3
+    note: 未接
+  - id: audio.voice_clone
+    title: 声音克隆
+    stage: M3
+    note: 未接
