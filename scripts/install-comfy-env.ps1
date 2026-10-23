@@ -1,9 +1,17 @@
-# 安装 ComfyUI 运行环境（平台自带引擎）
+﻿# 安装 ComfyUI 运行环境（平台自带引擎）
 # 顺序很关键：先装 CUDA 版 torch，再装 requirements（requirements 里的 torch 不带索引会拉 CPU 版）
+# 用法：powershell -ExecutionPolicy Bypass -File scripts\install-comfy-env.ps1
+# 前提：engines\comfy 已存在且已建好 .venv（scripts\bootstrap-comfy.ps1 会一起做）
+param(
+    [string]$ComfyDir = (Join-Path (Split-Path $PSScriptRoot -Parent) 'engines\comfy')
+)
+
 $ErrorActionPreference = 'Stop'
-$comfy = 'D:\AI\platform\engines\comfy'
+$comfy = $ComfyDir
 $py = "$comfy\.venv\Scripts\python.exe"
 $uv = (Get-Command uv).Source
+
+if (-not (Test-Path $py)) { throw "venv 不存在: $py；先跑 scripts\bootstrap-comfy.ps1" }
 
 Set-Location $comfy
 

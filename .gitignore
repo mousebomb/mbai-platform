@@ -1,26 +1,34 @@
-# 引擎本体（git clone，不入库）
-engines/comfy/
+# ---------- 引擎本体：git clone 的第三方仓库，永不入库 ----------
+# 只忽略子目录，engines/ 下自己的说明文件仍可提交
+engines/*/
 
-# 运行时数据：SQLite、产物、日志
+# ---------- 运行时数据：SQLite、产物图片、日志 ----------
+# 产物（生成的 png/mp4/wav）全部落在这里，不进仓库
 data/
+*.log
 
-# Python
+# ---------- Python ----------
 .venv/
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.db
 
-# 本地覆盖配置
-.env
-
-# 前端依赖与构建产物（由 npm 生成）
+# ---------- 前端 ----------
+# 依赖与构建产物由 npm 生成，换机后 npm install && npm run build 复现
 node_modules/
 apps/web/dist/
 *.tsbuildinfo
 
-# 权重永远不进代码库
+# ---------- 本地配置与凭据 ----------
+.env
+.env.*
+
+# ---------- 权重：永远不进代码库，只由 scripts/ 下载 ----------
 *.safetensors
 *.ckpt
 *.pt
 *.pth
 *.gguf
+*.onnx
+*.bin

@@ -1,4 +1,4 @@
-# 启动平台自带的 ComfyUI 引擎
+﻿# 启动平台自带的 ComfyUI 引擎
 # 用法：powershell -ExecutionPolicy Bypass -File scripts\start-engine.ps1
 $ErrorActionPreference = 'Stop'
 $comfy = Join-Path (Split-Path $PSScriptRoot -Parent) 'engines\comfy'

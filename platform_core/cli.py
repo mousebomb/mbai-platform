@@ -62,11 +62,11 @@ async def _doctor() -> int:
             print(f"  {OK} 节点总数 {len(info)}，MOSS 相关节点: {moss or '无'}")
             if not moss:
                 ok = False
-                print(f"  {ERR} 当前 ComfyUI 不含 MOSS-Image 原生节点（需要 commit e087d8f6 之后）")
+                print(f"  {ERR} 当前 ComfyUI 不含 MOSS-Image 原生节点（需 pinned commit d07dff45）")
     except Exception as e:  # noqa: BLE001
         ok = False
         print(f"  {ERR} 引擎不可达: {type(e).__name__}: {e}")
-        print("    启动命令: cd engines\\comfy; .\\.venv\\Scripts\\python.exe main.py --lowvram")
+        print("    启动命令: powershell -ExecutionPolicy Bypass -File scripts\\start-engine.ps1")
 
     return 0 if ok else 1
 
