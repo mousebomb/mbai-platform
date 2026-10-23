@@ -94,6 +94,13 @@ class JobStore:
                 self._conn.rollback()
                 raise
 
+    def delete(self, job_id: str) -> bool:
+        """删除任务记录；产物文件由调用方负责清理。"""
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+            self._conn.commit()
+        return cur.rowcount > 0
+
     def requeue_running(self) -> int:
         """进程重启时把中断的任务放回队列，避免永久卡在 running。"""
         with self._lock:

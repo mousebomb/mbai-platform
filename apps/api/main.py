@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from platform_core.comfy_client import ComfyClient
-from platform_core.contracts import Job, JobRequest, JobState
+from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
 from platform_core.registry import registry
 from platform_core.service import store, worker
 from platform_core.settings import settings
@@ -118,6 +119,25 @@ async def cancel_job(job_id: str) -> Job:
         except Exception:  # noqa: BLE001 - 取消失败不影响本地状态
             pass
     return job
+
+
+@app.delete("/v1/jobs/{job_id}", status_code=204)
+async def delete_job(job_id: str) -> Response:
+    """删除任务及其产物文件。
+
+    只允许删终态任务：排队/执行中的先取消。否则删除后执行器仍会回写该任务，
+    变成「删了又冒出来」的幽灵记录。
+    """
+    job = store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if job.state not in TERMINAL_STATES:
+        raise HTTPException(status_code=409, detail="任务还在排队或执行中，请先取消")
+
+    store.delete(job_id)
+    # 产物目录即使不存在也不报错：失败任务可能压根没产出
+    shutil.rmtree(settings.artifacts_dir / job_id, ignore_errors=True)
+    return Response(status_code=204)
 
 
 @app.get("/v1/jobs/{job_id}/file/{filename}")

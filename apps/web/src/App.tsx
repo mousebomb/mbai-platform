@@ -137,6 +137,18 @@ export default function App() {
     }
   }
 
+  /** 删除任务与磁盘产物，不可恢复，所以先确认 */
+  async function remove(id: string) {
+    if (!window.confirm("删除这个任务和它的产物文件？不可恢复。")) return;
+    try {
+      await api.deleteJob(id);
+      await refreshJobs();
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setNotice(detail ?? String(e));
+    }
+  }
+
   const gallery = useMemo(
     () =>
       jobs
@@ -219,26 +231,29 @@ export default function App() {
             <div className="joblist">
               {jobs.length === 0 && <div className="empty">还没有任务</div>}
               {jobs.map((job) => (
-                <JobRow key={job.id} job={job} onCancel={() => cancel(job.id)} />
+                <JobRow key={job.id} job={job} onCancel={() => cancel(job.id)} onDelete={() => remove(job.id)} />
               ))}
             </div>
           ) : (
             <div className="gallery">
               {gallery.length === 0 && <div className="empty">还没有作品</div>}
               {gallery.map(({ job, artifact }) => (
-                <a
-                  key={artifact.id}
-                  className="card"
-                  href={artifactUrl(artifact)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <img src={artifactUrl(artifact)} alt={fileName(artifact.path)} loading="lazy" />
+                <div key={artifact.id} className="card">
+                  <a href={artifactUrl(artifact)} target="_blank" rel="noreferrer">
+                    <img src={artifactUrl(artifact)} alt={fileName(artifact.path)} loading="lazy" />
+                  </a>
                   <div className="card-meta">
                     <span>{artifact.width}×{artifact.height}</span>
                     <span>{job.variant}</span>
                   </div>
-                </a>
+                  <button
+                    className="card-del"
+                    title="删除这张作品"
+                    onClick={() => remove(job.id)}
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -304,7 +319,7 @@ function Field({
   );
 }
 
-function JobRow({ job, onCancel }: { job: Job; onCancel: () => void }) {
+function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const prompt = typeof job.params.prompt === "string" ? job.params.prompt : JSON.stringify(job.params.prompt);
   const done = TERMINAL.includes(job.state);
@@ -331,6 +346,18 @@ function JobRow({ job, onCancel }: { job: Job; onCancel: () => void }) {
             }}
           >
             取消
+          </button>
+        )}
+        {done && (
+          <button
+            className="ghost danger"
+            title="删除任务与产物文件"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            删除
           </button>
         )}
       </div>

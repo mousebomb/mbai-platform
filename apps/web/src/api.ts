@@ -63,6 +63,7 @@ export const api = {
   createJob: (body: { capability: string; variant: string; params: Record<string, unknown> }) =>
     http.post<Job>("/jobs", body).then((r) => r.data),
   cancelJob: (id: string) => http.post<Job>(`/jobs/${id}/cancel`).then((r) => r.data),
+  deleteJob: (id: string) => http.delete(`/jobs/${id}`).then(() => undefined),
 };
 
 /** 产物在磁盘上的完整路径 → HTTP 文件名（后端只暴露任务目录下的直接子文件） */
