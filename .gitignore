@@ -13,6 +13,11 @@ __pycache__/
 # 本地覆盖配置
 .env
 
+# 前端依赖与构建产物（由 npm 生成）
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+
 # 权重永远不进代码库
 *.safetensors
 *.ckpt

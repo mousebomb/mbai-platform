@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from platform_core.comfy_client import ComfyClient
 from platform_core.contracts import Job, JobRequest, JobState
@@ -128,3 +129,15 @@ async def get_file(job_id: str, filename: str) -> FileResponse:
     if not path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(path)
+
+
+# 前端构建产物由同一个进程托管：局域网只需 8000 一个地址
+WEB_DIST = settings.root / "apps" / "web" / "dist"
+
+if WEB_DIST.exists():
+    app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")
+else:
+
+    @app.get("/")
+    async def index_missing() -> dict:
+        return {"detail": "前端未构建：npm --prefix apps/web run build"}
