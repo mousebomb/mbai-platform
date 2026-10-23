@@ -6,13 +6,34 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
 
 from .contracts import VariantInfo
 from .settings import settings
+
+
+class SourceFile(BaseModel):
+    """远端文件 → 本地相对路径。local 省略时与 remote 相同。"""
+
+    remote: str
+    local: str | None = None
+    # 完整性下限，单位 GiB；只用来抓「下到一半断掉」，不是精确值
+    min_gb: float = 0.0
+
+    @property
+    def local_path(self) -> str:
+        return self.local or self.remote
+
+
+class ModelSource(BaseModel):
+    """权重从哪来。没有 source 的模型视为「本机已有、不可自动还原」。"""
+
+    type: Literal["huggingface"] = "huggingface"
+    repo: str
+    files: list[SourceFile] = Field(default_factory=list)
 
 
 class ModelSpec(BaseModel):
@@ -25,6 +46,8 @@ class ModelSpec(BaseModel):
     vram_profile: str = "unknown"
     # 逻辑名 → 相对 models 根目录的路径
     files: dict[str, str] = Field(default_factory=dict)
+    # 下载来源：scripts/download_models.py 按它还原整套权重
+    source: ModelSource | None = None
     notes: str = ""
 
     def resolve_path(self) -> Path | None:

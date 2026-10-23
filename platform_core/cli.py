@@ -34,6 +34,7 @@ async def _doctor() -> int:
     print()
 
     print("[模型文件]")
+    missing = 0
     for model in registry.models.values():
         for role, rel in model.files.items():
             path = next(
@@ -48,7 +49,12 @@ async def _doctor() -> int:
                 print(f"  {OK} {model.id}/{role}: {path}  ({path.stat().st_size / 1e9:.2f} GB)")
             else:
                 ok = False
-                print(f"  {ERR} {model.id}/{role}: 缺失 {rel}")
+                missing += 1
+                # 有 source 的能自动补，没 source 的只能人工搬，必须说清楚
+                hint = "" if model.source else "（无下载来源，需人工放置）"
+                print(f"  {ERR} {model.id}/{role}: 缺失 {rel}{hint}")
+    if missing:
+        print(f"     补下载: uv run python scripts\\download-models.py --models-dir {settings.models_dir}")
     print()
 
     print("[引擎]")
