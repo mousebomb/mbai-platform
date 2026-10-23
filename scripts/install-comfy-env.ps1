@@ -7,8 +7,10 @@ $uv = (Get-Command uv).Source
 
 Set-Location $comfy
 
-Write-Host '[1/2] 安装 torch cu128'
-& $uv pip install --python $py torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+Write-Host '[1/2] 安装 torch cu130'
+# 必须 cu130：ComfyUI 的 comfy_kitchen 原生 int8/w4a8 算子要求 CUDA 13，用 cu128 会退回
+# eager 实现，MOSS-Image 实测慢 4 倍（6.2 s/it -> 1.5 s/it）
+& $uv pip install --python $py torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
 if ($LASTEXITCODE -ne 0) { throw "torch 安装失败 ($LASTEXITCODE)" }
 
 # 已装好 CUDA torch，这里把 requirements 的 torch 三件套排除，避免被 PyPI 的 CPU 版覆盖

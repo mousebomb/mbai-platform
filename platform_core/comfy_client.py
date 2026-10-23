@@ -69,7 +69,11 @@ class ComfyClient:
             await asyncio.sleep(interval)
 
     async def cancel(self, prompt_id: str) -> None:
-        """取消排队中的任务；已在执行则中断当前采样。"""
+        """取消排队中的任务；已在执行则中断当前采样。
+
+        注意：/interrupt 会中断引擎当前正在跑的那个任务。平台 worker 是单并发，
+        所以这里中断的一定是我们自己的任务；将来并发 >1 时要先查 /queue 再决定。
+        """
         await self._http.post("/queue", json={"delete": [prompt_id]})
         await self._http.post("/interrupt", json={})
 
