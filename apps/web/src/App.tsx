@@ -307,10 +307,15 @@ function Field({
         <input
           type="number"
           value={value}
-          step={spec.type === "float" ? 0.1 : 1}
+          step={spec.multiple_of ?? (spec.type === "float" ? 0.1 : 1)}
           min={spec.min}
           max={spec.max}
           onChange={(e) => onChange(name, e.target.value)}
+          onBlur={(e) => {
+            // 失焦就把值收拢到合法范围，避免提交时才被后端 422 打回
+            const next = normalizeNumber(e.target.value, spec);
+            if (next !== e.target.value) onChange(name, next);
+          }}
         />
       ) : (
         <input value={value} onChange={(e) => onChange(name, e.target.value)} />
@@ -371,6 +376,21 @@ function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; o
       )}
     </div>
   );
+}
+
+/** 数字输入失焦时收拢到合法值：先按 multiple_of 取最近倍数，再夹到 [min, max] */
+function normalizeNumber(raw: string, spec: InputSpec): string {
+  if (!raw.trim()) return raw;
+  const n = Number(raw);
+  // 不是数字就原样留着，提交时 coerce 会给出明确报错，不要偷偷改成别的值
+  if (!Number.isFinite(n)) return raw;
+
+  const m = spec.type === "int" ? spec.multiple_of : undefined;
+  let v = spec.type === "int" ? Math.trunc(n) : n;
+  if (m) v = Math.round(v / m) * m;
+  if (spec.min !== undefined && v < spec.min) v = m ? Math.ceil(spec.min / m) * m : spec.min;
+  if (spec.max !== undefined && v > spec.max) v = m ? Math.floor(spec.max / m) * m : spec.max;
+  return String(v);
 }
 
 /** 把表单字符串按 manifest 里的类型还原成 API 需要的值 */
