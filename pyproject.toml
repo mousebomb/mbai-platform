@@ -1,0 +1,26 @@
+[project]
+name = "ai-platform"
+version = "0.1.0"
+description = "本地 AI 能力平台：统一模型池 + 统一队列 + 网页/Agent 双入口"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+platform = "platform_core.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["platform_core"]
+
+[tool.uv]
+package = true

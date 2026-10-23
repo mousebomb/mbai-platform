@@ -1,0 +1,95 @@
+"""工作流模板：JSON 里只留结构，参数通过 manifest 的 bindings 注入。
+
+为什么不用字符串占位符：占位符一旦被写进 prompt 文本就会被误替换，
+路径式绑定（"6.inputs.text" → prompt）没有这个歧义。
+"""
+
+from __future__ import annotations
+
+import json
+import random
+from pathlib import Path
+from typing import Any
+
+from .registry import VariantSpec
+
+
+def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
+    """按 manifest 里的 inputs 描述做最小校验，错误信息要说清哪个参数。"""
+    kind = spec.get("type", "string")
+    if kind == "int":
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"参数 {name} 需要整数，收到 {value!r}")
+        if "min" in spec and value < spec["min"]:
+            raise ValueError(f"参数 {name} 不能小于 {spec['min']}")
+        if "max" in spec and value > spec["max"]:
+            raise ValueError(f"参数 {name} 不能大于 {spec['max']}")
+        if spec.get("multiple_of") and value % spec["multiple_of"]:
+            raise ValueError(f"参数 {name} 必须是 {spec['multiple_of']} 的倍数")
+    elif kind == "float":
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise ValueError(f"参数 {name} 需要数字，收到 {value!r}")
+        value = float(value)
+    elif kind == "string":
+        if not isinstance(value, str):
+            raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
+    elif kind == "prompt":
+        # 提示词可以是纯文本，也可以是 MOSS Layout JSON（结构化版式）
+        if isinstance(value, str):
+            pass
+        elif isinstance(value, dict):
+            if not isinstance(value.get("items"), list):
+                raise ValueError(f"参数 {name} 的布局对象缺少 items 数组")
+        else:
+            raise ValueError(f"参数 {name} 需要字符串或布局对象，收到 {type(value).__name__}")
+    return value
+
+
+def resolve_params(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
+    unknown = set(params) - set(spec.inputs)
+    if unknown:
+        raise ValueError(f"未知参数: {', '.join(sorted(unknown))}")
+
+    resolved: dict[str, Any] = {}
+    for name, desc in spec.inputs.items():
+        if name in params:
+            value = params[name]
+        elif "default" in desc:
+            value = desc["default"]
+        elif desc.get("required"):
+            raise ValueError(f"缺少必填参数: {name}")
+        else:
+            continue
+        resolved[name] = _check_input(name, desc, value)
+    return resolved
+
+
+def build_workflow(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
+    # utf-8-sig：Windows 上被记事本/PowerShell 写过的文件常带 BOM
+    workflow = json.loads(Path(spec.workflow_path).read_text(encoding="utf-8-sig"))
+
+    # seed 传 -1 表示随机；ComfyUI 的 seed 是 64 位整数
+    if params.get("seed", 0) is not None and params.get("seed", 0) < 0:
+        params["seed"] = random.randint(0, 2**53)
+
+    merged = {**params, **spec.constants}
+    for path, param_name in spec.bindings.items():
+        if param_name not in merged:
+            continue
+        _set_path(workflow, path, merged[param_name])
+    return workflow
+
+
+def _set_path(workflow: dict[str, Any], path: str, value: Any) -> None:
+    node_id, _, rest = path.partition(".")
+    node = workflow.get(node_id)
+    if node is None:
+        raise KeyError(f"工作流里没有节点 {node_id}（绑定 {path}）")
+    cursor: Any = node
+    keys = rest.split(".")
+    for k in keys[:-1]:
+        cursor = cursor[k]
+    # 目标是字符串而传入结构化对象（Layout JSON）时序列化，节点只认字符串
+    if isinstance(cursor.get(keys[-1]), str) and isinstance(value, (dict, list)):
+        value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    cursor[keys[-1]] = value

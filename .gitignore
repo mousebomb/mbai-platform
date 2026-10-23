@@ -1,0 +1,21 @@
+# 引擎本体（git clone，不入库）
+engines/comfy/
+
+# 运行时数据：SQLite、产物、日志
+data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 本地覆盖配置
+.env
+
+# 权重永远不进代码库
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.gguf

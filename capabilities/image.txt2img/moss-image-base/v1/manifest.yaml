@@ -1,0 +1,64 @@
+capability: image.txt2img
+variant: moss-image-base
+version: v1
+title: "MOSS-Image 5B Base 文生图"
+description: >-
+  原生版式控制文生图。prompt 传字符串即为普通文生图；
+  传 MOSS Layout JSON 对象可指定每个文本块/物体的 bbox（画布二期直接产出该结构）。
+model_id: moss-image-base-int8
+workflow: workflow.json
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  negative_prompt:
+    type: string
+    default: "nsfw, worst quality, bad anatomy, watermark, jpeg artifact"
+  width:
+    type: int
+    default: 1024
+    min: 256
+    max: 2048
+    multiple_of: 16
+  height:
+    type: int
+    default: 1024
+    min: 256
+    max: 2048
+    multiple_of: 16
+  steps:
+    type: int
+    default: 25
+    min: 8
+    max: 100
+  cfg:
+    type: float
+    default: 2.5
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: er_sde
+  scheduler:
+    type: string
+    default: simple
+  slg_layers:
+    type: string
+    default: "22"
+
+bindings:
+  "4.inputs.text": prompt
+  "5.inputs.text": negative_prompt
+  "6.inputs.width": width
+  "6.inputs.height": height
+  "7.inputs.seed": seed
+  "7.inputs.steps": steps
+  "7.inputs.cfg": cfg
+  "7.inputs.sampler_name": sampler_name
+  "7.inputs.scheduler": scheduler
+  "15.inputs.single_layers": slg_layers
+
+constants:
+  batch_size: 1
