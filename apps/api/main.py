@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from platform_core.adapters import get_adapter
@@ -179,6 +181,44 @@ async def get_job(job_id: str) -> Job:
     if job is None:
         raise HTTPException(status_code=404, detail="任务不存在")
     return job
+
+
+@app.get("/v1/jobs/{job_id}/events")
+async def job_events(job_id: str, request: Request) -> StreamingResponse:
+    """SSE 任务事件流：state / progress 变化时推一帧，15 秒一次心跳，终态推完即断。
+
+    任务不存在在流开始前就 404；客户端断开由 is_disconnected() 感知，
+    不会留下僵尸协程。
+    """
+    if store.get(job_id) is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    async def stream():
+        # 首帧一定是快照；(state, 4 位小数进度) 相同就不推
+        last_key: tuple[str, float] | None = None
+        last_ping = time.monotonic()
+        while True:
+            job = store.get(job_id)
+            if job is None:
+                return
+            key = (job.state.value, round(job.progress, 4))
+            if key != last_key:
+                last_key = key
+                yield f"data: {job.model_dump_json()}\n\n"
+                if job.state in TERMINAL_STATES:
+                    return
+            if time.monotonic() - last_ping >= 15:
+                last_ping = time.monotonic()
+                yield ": ping\n\n"
+            if await request.is_disconnected():
+                return
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/v1/jobs/{job_id}/cancel", response_model=Job)

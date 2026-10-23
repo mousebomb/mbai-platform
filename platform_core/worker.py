@@ -82,14 +82,18 @@ class Worker:
             self.store.save(job)
 
     async def _wait(self, adapter: Adapter, job: Job) -> EngineStatus:
-        """轮询引擎状态，同时响应取消请求。"""
+        """轮询引擎状态，同时响应取消请求、把实时进度写进库。"""
         while True:
             status = await adapter.status(job.engine_ref or "")
             if status.state in {EngineState.SUCCEEDED, EngineState.FAILED, EngineState.CANCELLED}:
                 return status
+            # 进度变化 ≥0.01 才落库，避免每 2 秒刷一次 SQLite
+            p = min(0.99, max(0.0, status.progress))
+            if abs(p - job.progress) >= 0.01:
+                job.progress = p
+                self.store.save(job)
             fresh = self.store.get(job.id)
             if fresh and fresh.state == JobState.CANCELLED:
                 await adapter.cancel(job.engine_ref or "")
                 raise AdapterError("任务已取消")
-            # TODO: 接引擎的实时进度，目前进度只在开始时置 0
             await asyncio.sleep(2.0)

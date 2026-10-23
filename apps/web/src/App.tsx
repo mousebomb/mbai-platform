@@ -120,6 +120,25 @@ export default function App() {
     };
   }, [refreshJobs, loadHealth]);
 
+  // 最新一个 running 任务（列表按创建时间倒序，find 取到的就是最新）
+  const runningJob = useMemo(() => jobs.find((j) => j.state === "running") ?? null, [jobs]);
+
+  // 对它开 SSE 实时刷进度；出错（含服务端正常断流）静默关闭、退回轮询
+  useEffect(() => {
+    if (!runningJob) return;
+    const es = new EventSource(`/v1/jobs/${runningJob.id}/events`);
+    es.onmessage = (ev) => {
+      try {
+        const next = JSON.parse(ev.data) as Job;
+        setJobs((prev) => prev.map((j) => (j.id === next.id ? next : j)));
+      } catch {
+        // 坏帧忽略，2 秒轮询会兜底
+      }
+    };
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [runningJob?.id]);
+
   function setField(name: string, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }));
   }
@@ -508,6 +527,8 @@ function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; o
         )}
       </div>
 
+      {job.state === "running" && <ProgressBar progress={job.progress} />}
+
       {open && (
         <div className="job-detail">
           {job.error && <div className="error">{job.error}</div>}
@@ -515,6 +536,19 @@ function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; o
           <div className="job-id">{job.id}</div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** running 任务的细进度条：宽度 = progress*100%，旁边带百分比数字 */
+function ProgressBar({ progress }: { progress: number }) {
+  const pct = Math.min(100, Math.round(progress * 100));
+  return (
+    <div className="job-progress">
+      <div className="job-progress-track">
+        <div className="job-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="job-progress-pct">{pct}%</span>
     </div>
   );
 }

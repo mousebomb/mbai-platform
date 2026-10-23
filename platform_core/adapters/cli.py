@@ -23,6 +23,10 @@ from .base import Adapter, AdapterError, EngineState, EngineStatus
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 # 产物扩展名 → Artifact.kind；本轮只有图片产物，视频/音频等 CLI 输出再接
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+# 日志里的百分比进度（realesrgan 按 tile 打 "xx.xx%"）；取最后一个匹配
+_PCT_RE = re.compile(r"(\d+(?:\.\d+)?)%")
+# 执行中进度上限：1.0 只留给 SUCCEEDED
+_PROGRESS_CEIL = 0.99
 
 
 def _render(template: str, values: dict[str, Any]) -> str:
@@ -105,7 +109,7 @@ class CliAdapter(Adapter):
             if deadline is not None and time.monotonic() > deadline:
                 self._kill_tree(proc)
                 return EngineStatus(state=EngineState.FAILED, error="执行超时，已终止进程")
-            return EngineStatus(state=EngineState.RUNNING)
+            return EngineStatus(state=EngineState.RUNNING, progress=self._log_progress(ref))
         # 进程已退出：立刻释放句柄，避免失败任务在 _procs 里越积越多
         self._release(ref)
         if code == 0:
@@ -115,6 +119,22 @@ class CliAdapter(Adapter):
     def _release(self, ref: str) -> None:
         self._procs.pop(ref, None)
         self._deadlines.pop(ref, None)
+
+    def _log_progress(self, ref: str) -> float:
+        """从日志末尾解析最后一个 "xx.xx%"，映射到 0~0.99；解析不到返回 0。"""
+        try:
+            data = (settings.logs_dir / f"{ref}.log").read_bytes()
+        except OSError:
+            return 0.0
+        # 只看末尾 64 KB：进度是滚动追加的，全读浪费
+        text = data[-65536:].decode("utf-8", errors="replace")
+        matches = _PCT_RE.findall(text)
+        if not matches:
+            return 0.0
+        try:
+            return min(_PROGRESS_CEIL, max(0.0, float(matches[-1]) / 100.0))
+        except ValueError:
+            return 0.0
 
     async def cancel(self, ref: str) -> None:
         proc = self._procs.get(ref)
