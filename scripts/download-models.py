@@ -45,7 +45,9 @@ def collect(models_dir: Path) -> tuple[list[Missing], list[str], list[str]]:
 
     for model in registry.models.values():
         if model.source is None:
-            no_source.append(model.id)
+            # files 为空的模型（权重随工具包分发）不算「无法还原」，跳过
+            if model.files:
+                no_source.append(model.id)
             continue
         for f in model.source.files:
             target = models_dir / f.local_path
@@ -98,7 +100,9 @@ def main() -> int:
         print(f"缺 {len(tasks)} 个文件（--check 模式不下载）")
         return 1
 
-    env = dict(os.environ, HF_ENDPOINT=args.endpoint)
+    # 关键：Comfy-Org 的部分仓库走 HF 的 Xet 存储，hf-mirror 不代理 Xet，
+    # 开着 Xet 会「下载成功」但拿到 388 字节的 LFS 指针文件。禁用后退回普通 LFS。
+    env = dict(os.environ, HF_ENDPOINT=args.endpoint, HF_HUB_DISABLE_XET="1")
     for m in tasks:
         cmd = [
             "uvx", "--from", "huggingface_hub", "hf", "download",
@@ -113,6 +117,19 @@ def main() -> int:
         if rc != 0:
             print(f"[!!] 下载失败 rc={rc}: {m.spec.remote}")
             return rc
+        # remote 与 local 不同时（HF 仓库带 split_files/ 前缀），hf download 按远端路径
+        # 镜像到 local-dir，需挪到注册表声明的本地位置；同一文件多模型共用时只挪一次
+        src = models_dir / m.spec.remote
+        dst = models_dir / m.spec.local_path
+        if src != dst and src.exists() and not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            src.replace(dst)
+            # 顺手清掉搬空后的远端目录层级，别留空壳目录
+            for p in src.parents:
+                if p != models_dir and p.exists() and not any(p.iterdir()):
+                    p.rmdir()
+                else:
+                    break
 
     if args.dry_run:
         return 0

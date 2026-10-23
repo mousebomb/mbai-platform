@@ -1,0 +1,66 @@
+capability: image.txt2img
+variant: z-image-turbo
+version: v1
+title: "Z-Image Turbo 6B 快速出图"
+description: >-
+  8 步 turbo 蒸馏模型，秒级出图档，适合快速预览。
+  cfg 固定 1.0，负向提示词按官方模板 zero-out，不对外暴露。
+model_id: z-image-turbo-int8
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  width:
+    type: int
+    default: 1024
+    min: 512
+    max: 2048
+    multiple_of: 16
+  height:
+    type: int
+    default: 1024
+    min: 512
+    max: 2048
+    multiple_of: 16
+  steps:
+    type: int
+    default: 8
+    min: 4
+    max: 20
+  cfg:
+    type: float
+    default: 1.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: res_multistep
+  scheduler:
+    type: string
+    default: simple
+
+bindings:
+  "4.inputs.text": prompt
+  "6.inputs.width": width
+  "6.inputs.height": height
+  "7.inputs.seed": seed
+  "7.inputs.steps": steps
+  "7.inputs.cfg": cfg
+  "7.inputs.sampler_name": sampler_name
+  "7.inputs.scheduler": scheduler
+  # 模型文件名与采样 shift 固定注入，不对外暴露
+  "1.inputs.unet_name": unet_name
+  "3.inputs.clip_name": clip_name
+  "8.inputs.vae_name": vae_name
+  "2.inputs.shift": shift
+
+constants:
+  unet_name: z_image_turbo_int8_convrot.safetensors
+  clip_name: qwen_3_4b_fp8_mixed.safetensors
+  vae_name: ae.safetensors
+  shift: 3
