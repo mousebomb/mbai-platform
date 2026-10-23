@@ -70,6 +70,8 @@ class VariantSpec(BaseModel):
     description: str = ""
     model_id: str
     workflow: str
+    # 引擎适配器 kind：接第二个引擎时新变体写别的值，控制平面不动
+    engine: str = "comfy"
     inputs: dict[str, Any] = Field(default_factory=dict)
     # "节点ID.inputs.字段" → 参数名，工作流里只换值，不动结构
     bindings: dict[str, str] = Field(default_factory=dict)

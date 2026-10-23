@@ -7,6 +7,7 @@ description: >-
   传 MOSS Layout JSON 对象可指定每个文本块/物体的 bbox（画布二期直接产出该结构）。
 model_id: moss-image-base-int8
 workflow: workflow.json
+engine: comfy
 
 inputs:
   prompt:

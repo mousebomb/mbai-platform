@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import sys
 
+from .adapters import get_adapter
 from .comfy_client import ComfyClient
 from .contracts import Job, JobState
 from .registry import registry
@@ -58,21 +59,27 @@ async def _doctor() -> int:
     print()
 
     print("[引擎]")
-    try:
-        async with ComfyClient(settings.comfy_url, timeout=5) as comfy:
-            stats = await comfy.health()
-            for d in stats.get("devices") or []:
-                print(f"  {OK} {d.get('name')}  VRAM {d.get('vram_total', 0) / 1e9:.1f} GB")
-            info = await comfy.object_info()
+    # 探活走适配器；MOSS 节点检查是 ComfyUI 特有项，仍直接走 ComfyClient
+    health = await get_adapter("comfy").health()
+    if not health.get("ok"):
+        ok = False
+        print(f"  {ERR} 引擎不可达: {health.get('error')}")
+        print("    启动命令: powershell -ExecutionPolicy Bypass -File scripts\\start-engine.ps1")
+    else:
+        for d in health.get("devices") or []:
+            print(f"  {OK} {d.get('name')}  VRAM {d.get('vram_total', 0) / 1e9:.1f} GB")
+        try:
+            async with ComfyClient(settings.comfy_url, timeout=5) as comfy:
+                info = await comfy.object_info()
             moss = [k for k in info if "MOSS" in k or "moss" in k.lower()]
             print(f"  {OK} 节点总数 {len(info)}，MOSS 相关节点: {moss or '无'}")
             if not moss:
                 ok = False
                 print(f"  {ERR} 当前 ComfyUI 不含 MOSS-Image 原生节点（需 pinned commit d07dff45）")
-    except Exception as e:  # noqa: BLE001
-        ok = False
-        print(f"  {ERR} 引擎不可达: {type(e).__name__}: {e}")
-        print("    启动命令: powershell -ExecutionPolicy Bypass -File scripts\\start-engine.ps1")
+        except Exception as e:  # noqa: BLE001
+            ok = False
+            print(f"  {ERR} 引擎不可达: {type(e).__name__}: {e}")
+            print("    启动命令: powershell -ExecutionPolicy Bypass -File scripts\\start-engine.ps1")
 
     return 0 if ok else 1
 

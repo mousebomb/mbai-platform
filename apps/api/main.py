@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from platform_core.comfy_client import ComfyClient
+from platform_core.adapters import get_adapter
 from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
 from platform_core.registry import registry
 from platform_core.service import store, worker
@@ -43,13 +43,10 @@ app.add_middleware(
 
 @app.get("/v1/health")
 async def health() -> dict:
-    engine: dict = {"url": settings.comfy_url, "ok": False}
-    try:
-        async with ComfyClient(settings.comfy_url, timeout=5) as comfy:
-            stats = await comfy.health()
-        engine.update(ok=True, devices=stats.get("devices"))
-    except Exception as e:  # noqa: BLE001
-        engine["error"] = f"{type(e).__name__}: {e}"
+    # 引擎按注册表声明的 kind 走适配器探活；当前只有 comfy，
+    # 接第二个引擎时响应结构要改成按 kind 分组（TODO）
+    kinds = {spec.engine for spec in registry.list_variants()} or {"comfy"}
+    engine = await get_adapter(sorted(kinds)[0]).health()
 
     missing = []
     for model in registry.models.values():
@@ -111,11 +108,11 @@ async def cancel_job(job_id: str) -> Job:
     job.state = JobState.CANCELLED
     store.save(job)
 
-    # 已提交到引擎的，顺手中断
+    # 已提交到引擎的，顺手中断；引擎 kind 从注册表拿
     if job.engine_ref:
         try:
-            async with ComfyClient(settings.comfy_url, timeout=5) as comfy:
-                await comfy.cancel(job.engine_ref)
+            spec = registry.get(job.capability, job.variant)
+            await get_adapter(spec.engine).cancel(job.engine_ref)
         except Exception:  # noqa: BLE001 - 取消失败不影响本地状态
             pass
     return job

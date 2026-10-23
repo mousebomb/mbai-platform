@@ -1,21 +1,19 @@
-"""执行器：从队列取任务 → 提交 ComfyUI → 收产物 → 落库。
+"""执行器：从队列取任务 → 交给引擎适配器 → 收产物 → 落库。
 
-单进程内跑一个 asyncio 任务，GPU 串行；API 线程只读写数据库，永远不阻塞请求。
+引擎细节全部在 adapters/ 里：接新引擎只加适配器，这里的核心路径不动。
 """
 
 from __future__ import annotations
 
 import asyncio
 import time
-from pathlib import Path
-from typing import Any
 
-from .comfy_client import ComfyClient, ComfyError
-from .contracts import Artifact, Job, JobState
+from .adapters import get_adapter
+from .adapters.base import Adapter, AdapterError, EngineState
+from .contracts import Job, JobState
 from .registry import registry
-from .settings import settings
 from .store import JobStore
-from .workflow import build_workflow, resolve_params
+from .workflow import resolve_params
 
 
 class Worker:
@@ -49,18 +47,19 @@ class Worker:
             spec = registry.get(job.capability, job.variant)
             # 只接受注册表中已声明的参数，防止前端塞入任意字段改工作流
             params = resolve_params(spec, job.params)
-            workflow = build_workflow(spec, params)
+            adapter = get_adapter(spec.engine)
 
-            async with ComfyClient(settings.comfy_url) as comfy:
-                job.engine_ref = await comfy.submit(workflow)
-                self.store.save(job)
+            job.engine_ref = await adapter.submit(spec, params, job.id)
+            self.store.save(job)
 
-                history = await self._wait(comfy, job)
-                status = history.get("status") or {}
-                if status.get("status_str") == "error":
-                    raise ComfyError(_format_status_error(status))
+            status = await self._wait(adapter, job)
+            if status.state == EngineState.FAILED:
+                raise AdapterError(status.error or "引擎执行失败")
+            # 引擎自己报取消（例如 CLI 适配器的进程被 kill）也要停，不能往下收产物
+            if status.state == EngineState.CANCELLED:
+                raise AdapterError(status.error or "任务已取消")
 
-                job.artifacts = await self._collect(comfy, job, history, params)
+            job.artifacts = await adapter.collect(job.engine_ref or "", job.id, params)
             job.state = JobState.SUCCEEDED
         except Exception as e:  # noqa: BLE001 - 任何失败都要落库，不能吞掉
             # 用户主动取消的任务不能被覆盖成 failed
@@ -73,58 +72,15 @@ class Worker:
             job.progress = 1.0 if job.state == JobState.SUCCEEDED else job.progress
             self.store.save(job)
 
-    async def _wait(self, comfy: ComfyClient, job: Job) -> dict[str, Any]:
-        """轮询任务状态，同时响应取消请求。"""
+    async def _wait(self, adapter: Adapter, job: Job) -> EngineStatus:
+        """轮询引擎状态，同时响应取消请求。"""
         while True:
-            history = await comfy.history(job.engine_ref or "")
-            status = history.get("status") or {}
-            if status.get("completed") or status.get("status_str") in {"success", "error"}:
-                return history
+            status = await adapter.status(job.engine_ref or "")
+            if status.state in {EngineState.SUCCEEDED, EngineState.FAILED, EngineState.CANCELLED}:
+                return status
             fresh = self.store.get(job.id)
             if fresh and fresh.state == JobState.CANCELLED:
-                await comfy.cancel(job.engine_ref or "")
-                raise ComfyError("任务已取消")
-            # TODO: 接 ComfyUI 的 websocket 拿真实进度，目前进度只在开始时置 0
+                await adapter.cancel(job.engine_ref or "")
+                raise AdapterError("任务已取消")
+            # TODO: 接引擎的实时进度，目前进度只在开始时置 0
             await asyncio.sleep(2.0)
-
-    async def _collect(
-        self, comfy: ComfyClient, job: Job, history: dict[str, Any], params: dict[str, Any]
-    ) -> list[Artifact]:
-        out_dir = settings.artifacts_dir / job.id
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        artifacts: list[Artifact] = []
-        for node_output in (history.get("outputs") or {}).values():
-            for image in node_output.get("images") or []:
-                if image.get("type") != "output":
-                    continue
-                data = await comfy.download(
-                    image["filename"], image.get("subfolder", ""), image.get("type", "output")
-                )
-                path = out_dir / _safe_name(image["filename"])
-                path.write_bytes(data)
-                artifacts.append(
-                    Artifact(
-                        job_id=job.id,
-                        kind="image",
-                        path=str(path),
-                        width=params.get("width"),
-                        height=params.get("height"),
-                    )
-                )
-        if not artifacts:
-            raise ComfyError("工作流执行完成但没有产出文件")
-        return artifacts
-
-
-def _safe_name(name: str) -> str:
-    return Path(name).name
-
-
-def _format_status_error(status: dict[str, Any]) -> str:
-    messages = status.get("messages") or []
-    for item in messages:
-        if isinstance(item, list) and len(item) == 2 and item[0] == "execution_error":
-            detail = item[1]
-            return f"{detail.get('node_type')}: {detail.get('exception_message')}"
-    return "ComfyUI 返回执行错误"

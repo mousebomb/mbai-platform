@@ -7,6 +7,7 @@ description: >-
   prompt 可以是普通字符串，也可以是 MOSS Layout JSON 对象。
 model_id: moss-image-sft-int8
 workflow: workflow.json
+engine: comfy
 
 inputs:
   prompt:
