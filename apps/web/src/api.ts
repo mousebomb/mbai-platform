@@ -29,12 +29,21 @@ export interface Job {
 }
 
 export interface InputSpec {
-  type: "string" | "int" | "float" | "prompt";
+  type: "string" | "int" | "float" | "prompt" | "image";
   required?: boolean;
   default?: string | number;
   min?: number;
   max?: number;
   multiple_of?: number;
+}
+
+export interface Asset {
+  id: string;
+  filename: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  url: string;
 }
 
 export interface VariantInfo {
@@ -64,6 +73,12 @@ export const api = {
     http.post<Job>("/jobs", body).then((r) => r.data),
   cancelJob: (id: string) => http.post<Job>(`/jobs/${id}/cancel`).then((r) => r.data),
   deleteJob: (id: string) => http.delete(`/jobs/${id}`).then(() => undefined),
+  // 上传输入图：axios 对 FormData 自动带 multipart 边界
+  uploadAsset: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return http.post<Asset>("/assets", fd).then((r) => r.data);
+  },
 };
 
 /** 产物在磁盘上的完整路径 → HTTP 文件名（后端只暴露任务目录下的直接子文件） */

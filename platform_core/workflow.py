@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import random
-from pathlib import Path
 from typing import Any
 
 from .registry import VariantSpec
@@ -33,6 +32,10 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
     elif kind == "string":
         if not isinstance(value, str):
             raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
+    elif kind == "image":
+        # 值就是 asset_id 字符串；文件存在性在入队时（API）校验
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"参数 {name} 需要素材 ID（字符串），收到 {value!r}")
     elif kind == "prompt":
         # 提示词可以是纯文本，也可以是 MOSS Layout JSON（结构化版式）
         if isinstance(value, str):
@@ -65,8 +68,12 @@ def resolve_params(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_workflow(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
+    # CLI 引擎没有工作流，走 cli.command；这里只服务 comfy
+    path = spec.workflow_path
+    if path is None:
+        raise ValueError(f"{spec.capability}/{spec.variant} 没有声明 workflow（CLI 引擎走 cli.command）")
     # utf-8-sig：Windows 上被记事本/PowerShell 写过的文件常带 BOM
-    workflow = json.loads(Path(spec.workflow_path).read_text(encoding="utf-8-sig"))
+    workflow = json.loads(path.read_text(encoding="utf-8-sig"))
 
     # seed 传 -1 表示随机；ComfyUI 的 seed 是 64 位整数
     if params.get("seed", 0) is not None and params.get("seed", 0) < 0:

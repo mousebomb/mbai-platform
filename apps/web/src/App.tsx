@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, artifactUrl, type Health, type InputSpec, type Job, type JobState, type VariantInfo } from "./api";
+import {
+  api,
+  artifactUrl,
+  type Asset,
+  type Health,
+  type InputSpec,
+  type Job,
+  type JobState,
+  type VariantInfo,
+} from "./api";
 
 const STATE_LABEL: Record<JobState, string> = {
   queued: "排队中",
@@ -26,6 +35,9 @@ export default function App() {
   const [variants, setVariants] = useState<VariantInfo[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [form, setForm] = useState<Record<string, string>>({});
+  // image 字段的已上传素材与上传中标记（按参数名存）
+  const [assets, setAssets] = useState<Record<string, Asset>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tab, setTab] = useState<"jobs" | "gallery">("jobs");
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,6 +56,8 @@ export default function App() {
       next[name] = spec.default === undefined ? "" : String(spec.default);
     }
     setForm(next);
+    setAssets({});
+    setUploading({});
   }, [variant]);
 
   const loadHealth = useCallback(async () => {
@@ -94,6 +108,22 @@ export default function App() {
 
   function setField(name: string, value: string) {
     setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  /** image 字段选中文件后立即上传，表单里存的是 asset_id */
+  async function uploadFile(name: string, file: File) {
+    setUploading((prev) => ({ ...prev, [name]: true }));
+    setNotice(null);
+    try {
+      const asset = await api.uploadAsset(file);
+      setAssets((prev) => ({ ...prev, [name]: asset }));
+      setField(name, asset.id);
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setNotice(detail ?? String(e));
+    } finally {
+      setUploading((prev) => ({ ...prev, [name]: false }));
+    }
   }
 
   async function submit() {
@@ -206,7 +236,16 @@ export default function App() {
 
           {variant &&
             Object.entries(variant.inputs).map(([name, spec]) => (
-              <Field key={name} name={name} spec={spec} value={form[name] ?? ""} onChange={setField} />
+              <Field
+                key={name}
+                name={name}
+                spec={spec}
+                value={form[name] ?? ""}
+                onChange={setField}
+                asset={assets[name]}
+                uploading={!!uploading[name]}
+                onFile={uploadFile}
+              />
             ))}
 
           {notice && <div className="notice">{notice}</div>}
@@ -268,12 +307,49 @@ function Field({
   spec,
   value,
   onChange,
+  asset,
+  uploading,
+  onFile,
 }: {
   name: string;
   spec: InputSpec;
   value: string;
   onChange: (name: string, value: string) => void;
+  asset?: Asset;
+  uploading?: boolean;
+  onFile?: (name: string, file: File) => void;
 }) {
+  // 图片输入：选择文件 → 立即上传 → 显示缩略图，表单值存 asset_id
+  if (spec.type === "image") {
+    return (
+      <label className="field">
+        <span>
+          {name}
+          {spec.required && <em> *</em>}
+        </span>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={uploading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f && onFile) onFile(name, f);
+          }}
+        />
+        {uploading && <p className="hint small">上传中…</p>}
+        {asset && !uploading && (
+          <div className="asset-preview">
+            <img src={asset.url} alt={asset.filename} />
+            <span className="asset-name">
+              {asset.filename}
+              {asset.width && asset.height ? ` · ${asset.width}×${asset.height}` : ""}
+            </span>
+          </div>
+        )}
+      </label>
+    );
+  }
+
   if (spec.type === "prompt") {
     return (
       <label className="field">

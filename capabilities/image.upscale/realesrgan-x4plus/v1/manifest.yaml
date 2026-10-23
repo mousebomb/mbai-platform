@@ -1,0 +1,37 @@
+capability: image.upscale
+variant: realesrgan-x4plus
+version: v1
+title: "Real-ESRGAN 超分（x4plus）"
+description: >-
+  通用/写实向 4x 超分，realesrgan-x4plus 模型，本地 ncnn-vulkan 执行，不走 ComfyUI。
+model_id: realesrgan-x4plus
+engine: cli
+
+cli:
+  command:
+    - '{tools_dir}\realesrgan\realesrgan-ncnn-vulkan.exe'
+    - '-i'
+    - '{image}'
+    - '-o'
+    - '{out}'
+    - '-n'
+    - '{model_name}'
+    - '-s'
+    - '{scale}'
+    - '-f'
+    - 'png'
+  timeout_sec: 900
+  output_ext: png
+
+inputs:
+  image:
+    type: image
+    required: true
+  scale:
+    type: int
+    default: 4
+    min: 2
+    max: 4
+
+constants:
+  model_name: realesrgan-x4plus

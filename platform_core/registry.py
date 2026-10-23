@@ -69,9 +69,12 @@ class VariantSpec(BaseModel):
     title: str = ""
     description: str = ""
     model_id: str
-    workflow: str
+    # ComfyUI 工作流文件名；CLI 引擎没有工作流，允许为空
+    workflow: str | None = None
     # 引擎适配器 kind：接第二个引擎时新变体写别的值，控制平面不动
     engine: str = "comfy"
+    # CLI 引擎的启动配置（command 占位符列表 / timeout_sec / output_ext）
+    cli: dict[str, Any] | None = None
     inputs: dict[str, Any] = Field(default_factory=dict)
     # "节点ID.inputs.字段" → 参数名，工作流里只换值，不动结构
     bindings: dict[str, str] = Field(default_factory=dict)
@@ -87,7 +90,9 @@ class VariantSpec(BaseModel):
         return self.base
 
     @property
-    def workflow_path(self) -> Path:
+    def workflow_path(self) -> Path | None:
+        if not self.workflow:
+            return None
         return self.dir / self.workflow
 
     def info(self) -> VariantInfo:
@@ -141,7 +146,8 @@ class Registry:
         for key, v in self.variants.items():
             if v.model_id not in self.models:
                 self.errors.append(f"{key}: 引用了不存在的模型 {v.model_id}")
-            if not v.workflow_path.exists():
+            # CLI 引擎没有 workflow.json，只在声明了文件时检查存在
+            if v.workflow and not v.workflow_path.exists():
                 self.errors.append(f"{key}: 工作流文件缺失 {v.workflow_path}")
 
     @staticmethod

@@ -10,6 +10,7 @@ import time
 
 from .adapters import get_adapter
 from .adapters.base import Adapter, AdapterError, EngineState
+from .assets import asset_path
 from .contracts import Job, JobState
 from .registry import registry
 from .store import JobStore
@@ -47,6 +48,14 @@ class Worker:
             spec = registry.get(job.capability, job.variant)
             # 只接受注册表中已声明的参数，防止前端塞入任意字段改工作流
             params = resolve_params(spec, job.params)
+            # image 参数存的是 asset_id，这里解析成绝对路径再交给适配器；
+            # 适配器不碰数据库/资产目录，只认文件路径
+            for name, desc in spec.inputs.items():
+                if desc.get("type") == "image" and name in params:
+                    p = asset_path(params[name])
+                    if p is None:
+                        raise ValueError(f"参数 {name} 的素材不存在: {params[name]}")
+                    params[name] = str(p)
             adapter = get_adapter(spec.engine)
 
             job.engine_ref = await adapter.submit(spec, params, job.id)

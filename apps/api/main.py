@@ -3,20 +3,37 @@
 from __future__ import annotations
 
 import shutil
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from platform_core.adapters import get_adapter
+from platform_core.assets import (
+    IMAGE_EXTS,
+    MAX_ASSET_BYTES,
+    asset_path,
+    detect_format,
+    ext_matches,
+    image_size,
+)
 from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
 from platform_core.registry import registry
 from platform_core.service import store, worker
 from platform_core.settings import settings
 from platform_core.workflow import resolve_params
+
+# 素材预览用的 MIME（Windows 的 mimetypes 不认识 webp，显式指定）
+_ASSET_MEDIA = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 
 
 @asynccontextmanager
@@ -43,22 +60,76 @@ app.add_middleware(
 
 @app.get("/v1/health")
 async def health() -> dict:
-    # 引擎按注册表声明的 kind 走适配器探活；当前只有 comfy，
-    # 接第二个引擎时响应结构要改成按 kind 分组（TODO）
+    # 引擎按注册表声明的 kind 走适配器探活；前端顶栏展示的主引擎优先 comfy
+    #（有 GPU 信息），CLI 引擎没有常驻服务，逐个探活结果放进 engines
     kinds = {spec.engine for spec in registry.list_variants()} or {"comfy"}
-    engine = await get_adapter(sorted(kinds)[0]).health()
+    engines = {k: await get_adapter(k).health() for k in kinds}
+    engine = engines.get("comfy") or next(iter(engines.values()))
 
     missing = []
     for model in registry.models.values():
-        if model.resolve_path() is None or not model.resolve_path().exists():
+        # files 为空的模型（权重随工具包分发）没有可检查的文件，跳过
+        if not model.files:
+            continue
+        path = model.resolve_path()
+        if path is None or not path.exists():
             missing.append(model.id)
 
     return {
         "engine": engine,
+        "engines": engines,
         "registry_errors": registry.errors,
         "missing_models": missing,
         "variants": len(registry.variants),
     }
+
+
+@app.post("/v1/assets")
+async def upload_asset(request: Request, file: UploadFile = File(...)) -> dict:
+    """上传输入图：只认 png/jpg/jpeg/webp，≤ 20 MB，落盘 data/uploads/<id>.<ext>。"""
+    # 先看 Content-Length 挡掉明显超限的请求，避免大文件先整个落进临时文件
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_ASSET_BYTES + 1024 * 1024:
+        raise HTTPException(status_code=413, detail="文件超过 20 MB 上限")
+
+    original = Path(file.filename or "").name
+    ext = Path(original).suffix.lower()
+    if ext not in IMAGE_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的图片类型 {ext or '(无扩展名)'}，只允许 png/jpg/jpeg/webp",
+        )
+
+    data = await file.read(MAX_ASSET_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="文件为空")
+    if len(data) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=413, detail="文件超过 20 MB 上限")
+
+    # 文件头必须和扩展名对上，防止文本/伪造文件混进来
+    fmt = detect_format(data)
+    if fmt is None or not ext_matches(ext, fmt):
+        raise HTTPException(status_code=400, detail="文件内容不是有效的 PNG/JPEG/WebP 图片")
+
+    size = image_size(data)
+    asset_id = "ast_" + uuid.uuid4().hex[:12]
+    (settings.uploads_dir / f"{asset_id}{ext}").write_bytes(data)
+    return {
+        "id": asset_id,
+        "filename": original,
+        "bytes": len(data),
+        "width": size[0] if size else None,
+        "height": size[1] if size else None,
+        "url": f"/v1/assets/{asset_id}",
+    }
+
+
+@app.get("/v1/assets/{asset_id}")
+async def get_asset(asset_id: str) -> FileResponse:
+    path = asset_path(asset_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="素材不存在")
+    return FileResponse(path, media_type=_ASSET_MEDIA[path.suffix.lower()])
 
 
 @app.get("/v1/capabilities")
@@ -77,9 +148,16 @@ async def create_job(req: JobRequest) -> Job:
     )
     # 参数错误在入队前就暴露，而不是等执行到一半才失败
     try:
-        resolve_params(spec, req.params)
+        resolved = resolve_params(spec, req.params)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    # image 参数在入队前校验素材存在，避免任务排到一半才发现缺图
+    for name, desc in spec.inputs.items():
+        if desc.get("type") == "image" and name in resolved:
+            if asset_path(resolved[name]) is None:
+                raise HTTPException(
+                    status_code=422, detail=f"参数 {name} 引用的素材不存在: {resolved[name]}"
+                )
 
     return store.add(job)
 

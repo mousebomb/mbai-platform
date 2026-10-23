@@ -11,6 +11,9 @@ engines/*/
 data/
 *.log
 
+# ---------- 本地 CLI 工具：由 scripts/download-tools.ps1 下载，不入库 ----------
+tools/*/
+
 # ---------- Python ----------
 .venv/
 __pycache__/

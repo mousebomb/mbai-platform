@@ -471,6 +471,29 @@ button.ghost:hover {
   border-color: var(--bad);
 }
 
+/* ---------- 图片素材上传预览 ---------- */
+.asset-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.asset-preview img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.asset-name {
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 /* ---------- 窄屏（手机/平板） ---------- */
 @media (max-width: 900px) {
   .layout {
