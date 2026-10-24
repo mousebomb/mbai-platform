@@ -10,8 +10,18 @@ import json
 import random
 from typing import Any
 
+from .pool import find_checkpoint, find_lora
 from .registry import VariantSpec, registry
 from .voices import find, list_voices
+
+
+def _pool_role(spec: dict[str, Any], kind: str) -> str:
+    """候选目录：`options_from: checkpoints/sd15` → 角色 `checkpoints/sd15`。
+
+    没写 options_from 时退回 `checkpoints` / `loras` 整个目录。
+    """
+    _, _, sub = str(spec.get("options_from") or kind).partition("/")
+    return f"{kind}/{sub}" if sub else kind
 
 
 def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
@@ -49,6 +59,20 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
         if find(value) is None:
             names = [v.name for v in list_voices()]
             raise ValueError(f"参数 {name} 的音色 {value!r} 不存在，可选: {names}")
+    elif kind == "checkpoint":
+        # 运行时选检查点：必须是模型池里真实存在的名字，否则引擎那头才报错，白排一次队
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"参数 {name} 需要检查点名（字符串），收到 {value!r}")
+        if find_checkpoint(value, _pool_role(spec, "checkpoints")) is None:
+            raise ValueError(
+                f"参数 {name} 的检查点 {value!r} 不在模型池里；先用 scripts/link-local-models.ps1 挂进来"
+            )
+    elif kind == "lora":
+        # 空串 = 不用 LoRA；对应 manifest 里 optional_nodes 会把 LoraLoader 节点摘掉
+        if not isinstance(value, str):
+            raise ValueError(f"参数 {name} 需要 LoRA 名（字符串），收到 {value!r}")
+        if value and find_lora(value, _pool_role(spec, "loras")) is None:
+            raise ValueError(f"参数 {name} 的 LoRA {value!r} 不在模型池里")
     elif kind == "prompt":
         # 提示词可以是纯文本，也可以是 MOSS Layout JSON（结构化版式）
         if isinstance(value, str):
@@ -108,7 +132,32 @@ def build_workflow(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
         if param_name not in merged:
             continue
         _set_path(workflow, path, merged[param_name])
+
+    # 可选节点：参数为空时把节点摘掉（不选 LoRA = LoraLoader 不参与计算）。
+    # 放在 bindings 之后：值先按常规注入，节点再整体移除，顺序反过来会 KeyError。
+    for param_name, rule in spec.optional_nodes.items():
+        if merged.get(param_name):
+            continue
+        _drop_node(workflow, str(rule["node"]), rule.get("rewires") or [])
     return workflow
+
+
+def _drop_node(workflow: dict[str, Any], node_id: str, rewires: list) -> None:
+    """把节点从图里摘掉，下游引用按 `rewires` 接回上游。
+
+    rewires 是四元组列表 `[原节点, 原槽位, 目标节点, 目标槽位]`，必须在 manifest 里显式写。
+    不按「输入声明顺序推断输出槽位」——猜错不会报错，只会静默出一张错图。
+    """
+    table = {(str(r[0]), int(r[1])): [str(r[2]), int(r[3])] for r in rewires}
+    for node in workflow.values():
+        inputs = node.get("inputs") or {}
+        for key, value in inputs.items():
+            if not isinstance(value, list) or len(value) != 2:
+                continue
+            replaced = table.get((str(value[0]), int(value[1])))
+            if replaced is not None:
+                inputs[key] = list(replaced)
+    workflow.pop(node_id, None)
 
 
 def _set_path(workflow: dict[str, Any], path: str, value: Any) -> None:

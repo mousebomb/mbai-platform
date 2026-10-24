@@ -1,0 +1,92 @@
+capability: image.txt2img
+variant: sd15-community
+version: v1
+title: "SD1.5 社区检查点（可下拉切换 + LoRA）"
+description: >-
+  从 A1111 的权重目录链进来的 SD1.5 检查点，运行时可切（checkpoint 下拉）并可选挂一个 LoRA。
+  画质普遍不如 z-image-turbo / Qwen-Image，价值在风格专精（游戏图标、二次元线稿）、512 出图成本低、
+  以及能用老提示词和旧种子复现；原生 512，超过 768 容易出双头/重复肢体。
+model_id: sd15-community
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  negative_prompt:
+    type: string
+    default: "lowres, bad anatomy, bad hands, extra digits, watermark, signature, jpeg artifacts"
+  checkpoint:
+    # 候选来自模型池 checkpoints/sd15/（scripts/link-local-models.ps1 建的符号链接）
+    type: checkpoint
+    required: true
+    options_from: checkpoints/sd15
+    # 只是下拉默认值（最通用的写实模型）；本机没这个文件时后端会退到候选第一项。
+    # 单引号：路径里的反斜杠要原样保留，且必须与引擎列出的名字逐字符一致
+    default: 'sd15\realisticVisionV20_v20.safetensors'
+  lora:
+    # 空串 = 不挂 LoRA；此时 workflow 里的 LoraLoader 节点会被整个摘掉
+    type: lora
+    options_from: loras/sd15
+    default: ""
+  lora_strength:
+    type: float
+    default: 0.8
+    min: -2.0
+    max: 2.0
+  width:
+    type: int
+    default: 512
+    min: 256
+    max: 1024
+    multiple_of: 64
+  height:
+    type: int
+    default: 512
+    min: 256
+    max: 1024
+    multiple_of: 64
+  steps:
+    type: int
+    default: 20
+    min: 4
+    max: 60
+  cfg:
+    type: float
+    default: 7.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: dpmpp_2m
+  scheduler:
+    type: string
+    default: karras
+
+bindings:
+  "2.inputs.text": prompt
+  "3.inputs.text": negative_prompt
+  "4.inputs.width": width
+  "4.inputs.height": height
+  "5.inputs.seed": seed
+  "5.inputs.steps": steps
+  "5.inputs.cfg": cfg
+  "5.inputs.sampler_name": sampler_name
+  "5.inputs.scheduler": scheduler
+  # 检查点不走 model_bind：它由参数决定，不是模型清单里的固定角色
+  "1.inputs.ckpt_name": checkpoint
+  "8.inputs.lora_name": lora
+  "8.inputs.strength_model": lora_strength
+  "8.inputs.strength_clip": lora_strength
+
+# 不选 LoRA 时摘掉 8 号节点，下游接回检查点自己的输出槽：
+# LoraLoader 的 0 号输出是 MODEL（接它自己的 model 输入）、1 号是 CLIP（接 clip 输入）
+optional_nodes:
+  lora:
+    node: "8"
+    rewires:
+      - ["8", 0, "1", 0]
+      - ["8", 1, "1", 1]

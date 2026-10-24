@@ -99,20 +99,3 @@ def find(name: str) -> Voice | None:
         if v.name.lower() == key:
             return v
     return None
-
-
-def resolve_options(inputs: dict) -> dict:
-    """把 `options_from: voices` 展开成具体候选值，供 API 下发给前端。
-
-    清单里的默认值如果不在候选里（比如改了 config），退到第一个，避免下拉空白。
-    """
-    names = [v.name for v in list_voices()]
-    out: dict = {}
-    for key, spec in inputs.items():
-        spec = dict(spec)
-        if spec.get("options_from") == "voices":
-            spec["options"] = names
-            if names and spec.get("default") not in names:
-                spec["default"] = names[0]
-        out[key] = spec
-    return out

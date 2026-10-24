@@ -530,13 +530,20 @@ function Field({
         </span>
         <select value={value} onChange={(e) => onChange(name, e.target.value)}>
           {spec.options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
+            <option key={opt || "__none"} value={opt}>
+              {/* 空值是「不使用」这类显式空选项（LoRA 可以用它跳过节点） */}
+              {opt || "（不使用）"}
             </option>
           ))}
         </select>
         {spec.type === "voice" && (
           <p className="hint small">候选来自音色目录（config.txt + 目录里的 wav/txt）；新增音色后刷新页面</p>
+        )}
+        {spec.type === "checkpoint" && (
+          <p className="hint small">候选来自模型池 checkpoints 目录；换权重跑 scripts\link-local-models.ps1</p>
+        )}
+        {spec.type === "lora" && (
+          <p className="hint small">候选来自模型池 loras 目录；选「（不使用）」时不加载 LoRA</p>
         )}
       </label>
     );

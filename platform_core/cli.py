@@ -52,7 +52,7 @@ async def _doctor() -> int:
     for model in registry.models.values():
         roles = sorted(set(model.files) | set(registry.profiles.get(model.id, {})))
         if not roles:
-            print(f"  {OK} {model.id} ({model.kind}): 无外部权重，随工具包分发")
+            print(f"  {OK} {model.id} ({model.kind}): 无固定权重文件（工具包分发或运行时选择）")
             continue
         # 可还原性直接影响「换机器能不能自动补齐」，必须显式打出来
         tag = model.kind + ("，可还原" if model.can_restore else "，需自备")

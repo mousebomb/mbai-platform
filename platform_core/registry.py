@@ -121,6 +121,9 @@ class VariantSpec(BaseModel):
     bindings: dict[str, str] = Field(default_factory=dict)
     # 固定注入的值（比如模型文件名），不对外暴露
     constants: dict[str, Any] = Field(default_factory=dict)
+    # 可选参数 → 节点摘除规则：`{"lora": {"node": "8", "rewires": [...]}}`，
+    # 参数为空时该节点不参与计算（不选 LoRA 就不装 LoraLoader）
+    optional_nodes: dict[str, dict[str, Any]] = Field(default_factory=dict)
     # 加载时回填，不写进 YAML
     base: Path | None = Field(default=None, exclude=True)
 
