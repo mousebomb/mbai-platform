@@ -160,7 +160,13 @@ async def matrix() -> list[dict]:
 
 @app.post("/v1/jobs", response_model=Job, status_code=202)
 async def create_job(req: JobRequest) -> Job:
-    spec = registry.get(req.capability, req.variant)
+    # 未知变体以前直接抛 KeyError → 500，调用方（尤其 Agent）拿不到有用的信息
+    try:
+        spec = registry.get(req.capability, req.variant)
+    except KeyError as e:
+        raise HTTPException(
+            status_code=422, detail=f"没有这个能力变体: {req.capability}/{req.variant}"
+        ) from e
     job = Job(
         capability=req.capability,
         variant=req.variant,
@@ -172,9 +178,9 @@ async def create_job(req: JobRequest) -> Job:
         resolved = resolve_params(spec, req.params)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    # image 参数在入队前校验素材存在，避免任务排到一半才发现缺图
+    # 素材类参数在入队前校验存在，避免任务排到一半才发现缺图/缺蒙版
     for name, desc in spec.inputs.items():
-        if desc.get("type") == "image" and name in resolved:
+        if desc.get("type") in {"image", "audio", "mask"} and name in resolved:
             if asset_path(resolved[name]) is None:
                 raise HTTPException(
                     status_code=422, detail=f"参数 {name} 引用的素材不存在: {resolved[name]}"

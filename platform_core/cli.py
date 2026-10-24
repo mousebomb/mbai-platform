@@ -209,6 +209,13 @@ def main() -> None:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
 
+    # MCP 入口：给 Agent 用的 stdio 服务，内部走 HTTP 调本平台
+    p_mcp = sub.add_parser("mcp", help="MCP 服务（stdio），把平台能力暴露给 Agent")
+    p_mcp.add_argument("--url", default=None, help="平台地址，默认 settings.api_url")
+    p_mcp.add_argument(
+        "--transport", default="stdio", choices=["stdio", "sse", "streamable-http"]
+    )
+
     p_gc = sub.add_parser("gc", help="按 TTL 清理中间产物（默认只预演）")
     p_gc.add_argument("--apply", action="store_true", help="真的删除；不加只打印计划")
     p_gc.add_argument(
@@ -230,6 +237,15 @@ def main() -> None:
         import uvicorn
 
         uvicorn.run("apps.api.main:app", host=args.host, port=args.port, reload=False)
+    if args.cmd == "mcp":
+        # 延迟导入：不用 MCP 的人不必付 mcp 包的启动开销
+        from .mcp_server import main as mcp_main
+
+        sys.argv = ["platform mcp"]
+        if args.url:
+            sys.argv += ["--url", args.url]
+        sys.argv += ["--transport", args.transport]
+        mcp_main()
 
 
 if __name__ == "__main__":
