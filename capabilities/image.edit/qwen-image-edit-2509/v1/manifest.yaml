@@ -1,0 +1,61 @@
+capability: image.edit
+variant: qwen-image-edit-2509
+version: v1
+title: "Qwen-Image-Edit 2509（4 步快改图）"
+description: >-
+  给一张图和一句修改指令，按指令改图并保持场景一致（换主体、改风格、改光照等）。
+  fp8 版 + Lightning 4 步 LoRA，cfg 1.0，euler/simple。
+model_id: qwen-image-edit-2509
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  image:
+    type: image
+    required: true
+  prompt:
+    type: prompt
+    required: true
+  negative_prompt:
+    type: string
+    default: ""
+  steps:
+    type: int
+    default: 4
+    min: 4
+    max: 30
+  cfg:
+    type: float
+    default: 1.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: euler
+  scheduler:
+    type: string
+    default: simple
+
+# 四个模型文件按角色注入，具体文件由 profile 决定
+model_bind:
+  diffusion_model: "4.inputs.unet_name"
+  text_encoder: "9.inputs.clip_name"
+  vae: "8.inputs.vae_name"
+  lora: "5.inputs.lora_name"
+
+bindings:
+  # 输入图在 worker 里被解析成本机绝对路径，comfy 适配器提交前会上传给引擎换成文件名
+  "1.inputs.image": image
+  "10.inputs.prompt": prompt
+  "11.inputs.prompt": negative_prompt
+  "12.inputs.seed": seed
+  "12.inputs.steps": steps
+  "12.inputs.cfg": cfg
+  "12.inputs.sampler_name": sampler_name
+  "12.inputs.scheduler": scheduler
+  "6.inputs.shift": shift
+
+constants:
+  shift: 3

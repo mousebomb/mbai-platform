@@ -51,14 +51,13 @@ def collect(models_dir: Path) -> tuple[list[Missing], list[str], list[str]]:
             continue
         for f in model.source.files:
             target = models_dir / f.local_path
+            repo = f.repo or model.source.repo
             if target.exists() and target.stat().st_size >= f.min_gb * GB:
                 # 同一文件被多个模型共用，只报一次
                 ready[str(target)] = f"{target}  ({target.stat().st_size / GB:.2f} GiB)"
                 continue
             reason = "缺失" if not target.exists() else "大小异常"
-            missing.setdefault(
-                (model.source.repo, f.local_path), Missing(model.source.repo, f, target, reason)
-            )
+            missing.setdefault((repo, f.local_path), Missing(repo, f, target, reason))
 
     return list(missing.values()), list(ready.values()), no_source
 

@@ -20,6 +20,7 @@ from typing import Any
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from ..assets import image_size
 from ..comfy_client import ComfyClient
 from ..contracts import Artifact
 from ..registry import VariantSpec
@@ -63,6 +64,8 @@ class ComfyAdapter(Adapter):
         """
         workflow = build_workflow(spec, params)
         async with ComfyClient(self.url, timeout=self.timeout) as client:
+            # 带输入图的工作流：把本机绝对路径先传给引擎，换成它能认的文件名
+            await self._upload_local_inputs(workflow, client)
             ref = await client.submit(workflow)
             cid = client.client_id
         # 提交成功就起后台 watcher 连 ws 跟踪真实进度；连不上只是降级为 0。
@@ -73,6 +76,23 @@ class ComfyAdapter(Adapter):
             self._watch_progress(ref, cid), name=f"comfy-progress-{ref}"
         )
         return ref
+
+    async def _upload_local_inputs(self, workflow: dict[str, Any], client: ComfyClient) -> None:
+        """把工作流里「本机绝对路径」形式的输入换成引擎里的文件名。
+
+        LoadImage 这类节点只接受 ComfyUI input/ 目录下的文件名，不认绝对路径。
+        判定条件很窄：值必须是字符串、是绝对路径、且文件真实存在——普通的文本参数
+        不会满足，所以不会误伤 prompt。
+        """
+        for node in workflow.values():
+            inputs = node.get("inputs") or {}
+            for key, value in list(inputs.items()):
+                if not isinstance(value, str):
+                    continue
+                p = Path(value)
+                if not p.is_absolute() or not p.is_file():
+                    continue
+                inputs[key] = await client.upload_image(p)
 
     async def _watch_progress(self, ref: str, cid: str) -> None:
         """后台任务：连引擎 websocket，把 ref 的实时进度写进 self._progress。
@@ -191,13 +211,15 @@ class ComfyAdapter(Adapter):
                         )
                         path = out_dir / _safe_name(image["filename"])
                         path.write_bytes(data)
+                        # 没有 width/height 参数的变体（比如改图）就从文件头读真实尺寸
+                        size = image_size(data)
                         artifacts.append(
                             Artifact(
                                 job_id=job_id,
                                 kind="image",
                                 path=str(path),
-                                width=params.get("width"),
-                                height=params.get("height"),
+                                width=params.get("width") or (size[0] if size else None),
+                                height=params.get("height") or (size[1] if size else None),
                             )
                         )
         finally:

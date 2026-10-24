@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -14,6 +15,13 @@ import httpx
 
 class ComfyError(RuntimeError):
     pass
+
+
+_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+
+
+def _guess_mime(path: Path) -> str:
+    return _MIME.get(path.suffix.lower(), "application/octet-stream")
 
 
 class ComfyClient:
@@ -76,6 +84,22 @@ class ComfyClient:
         """
         await self._http.post("/queue", json={"delete": [prompt_id]})
         await self._http.post("/interrupt", json={})
+
+    async def upload_image(self, path: Path) -> str:
+        """把本机图片传到引擎的 input 目录，返回引擎认的文件名。
+
+        ComfyUI 的 LoadImage 只认自己 input/ 目录下的文件名，不认绝对路径，
+        所以带输入图的工作流必须先把文件传上去。
+        """
+        data = {"type": "input", "overwrite": "true"}
+        files = {"image": (path.name, path.read_bytes(), _guess_mime(path))}
+        r = await self._http.post("/upload/image", files=files, data=data)
+        if r.status_code != 200:
+            raise ComfyError(f"上传输入图失败 {r.status_code}: {r.text[:400]}")
+        payload = r.json()
+        name = payload.get("name") or path.name
+        subfolder = payload.get("subfolder") or ""
+        return f"{subfolder}/{name}" if subfolder else name
 
     async def download(self, filename: str, subfolder: str = "", folder_type: str = "output") -> bytes:
         r = await self._http.get(

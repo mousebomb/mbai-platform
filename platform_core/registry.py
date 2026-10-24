@@ -22,6 +22,8 @@ class SourceFile(BaseModel):
     local: str | None = None
     # 完整性下限，单位 GiB；只用来抓「下到一半断掉」，不是精确值
     min_gb: float = 0.0
+    # 单个文件可以来自别的仓库（比如 LoRA 在另一个 repo），省略则用模型级 repo
+    repo: str | None = None
 
     @property
     def local_path(self) -> str:
