@@ -21,7 +21,7 @@ capabilities:
   - id: image.matting
     title: 抠图
     stage: M2
-    note: 未接
+    note: 已接 BiRefNet（输出透明 PNG）
   - id: image.inpaint
     title: 蒙版重绘
     stage: M2

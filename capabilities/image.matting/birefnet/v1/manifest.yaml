@@ -1,0 +1,24 @@
+capability: image.matting
+variant: birefnet
+version: v1
+title: "BiRefNet 抠图"
+description: >-
+  输出带透明通道的 PNG（RGBA），前景保留、背景全透明。走 ComfyUI 核心的
+  LoadBackgroundRemovalModel + RemoveBackground，不需要装自定义节点。
+  头发、毛发、半透明边缘这类细节是 BiRefNet 的强项。
+model_id: birefnet
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  image:
+    type: image
+    required: true
+
+# 抠图模型走 background_removal 这个目录键（ComfyUI 的核心节点按这个名字找文件）
+model_bind:
+  background_removal: "1.inputs.bg_removal_name"
+
+bindings:
+  "2.inputs.image": image

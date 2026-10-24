@@ -1,0 +1,59 @@
+{
+  "1": {
+    "class_type": "LoadBackgroundRemovalModel",
+    "inputs": {
+      "bg_removal_name": "birefnet.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "placeholder.png"
+    }
+  },
+  "3": {
+    "class_type": "RemoveBackground",
+    "inputs": {
+      "bg_removal_model": [
+        "1",
+        0
+      ],
+      "image": [
+        "2",
+        0
+      ]
+    }
+  },
+  "4": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": [
+        "3",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "2",
+        0
+      ],
+      "alpha": [
+        "4",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "5",
+        0
+      ],
+      "filename_prefix": "matting"
+    }
+  }
+}
