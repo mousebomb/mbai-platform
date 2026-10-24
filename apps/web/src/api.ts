@@ -31,12 +31,14 @@ export interface Job {
 }
 
 export interface InputSpec {
-  type: "string" | "int" | "float" | "prompt" | "text" | "image" | "audio";
+  type: "string" | "int" | "float" | "prompt" | "text" | "image" | "audio" | "voice";
   required?: boolean;
   default?: string | number;
   min?: number;
   max?: number;
   multiple_of?: number;
+  /** 固定候选值（后端按 options_from 展开，比如音色清单） */
+  options?: string[];
 }
 
 export interface Asset {

@@ -21,9 +21,10 @@ from ..media import KIND_BY_SUFFIX, media_duration
 from ..registry import VariantSpec
 from ..resources import release_comfy
 from ..settings import settings
+from ..voices import find
 from .base import Adapter, AdapterError, EngineState, EngineStatus
 
-_PLACEHOLDER = re.compile(r"\{(\w+)\}")
+_PLACEHOLDER = re.compile(r"\{([\w:]+)\}")
 # 产物扩展名 → Artifact.kind；不认识的扩展名直接跳过，不当产物收
 _MEDIA_KINDS = KIND_BY_SUFFIX
 # 日志里的百分比进度（realesrgan 按 tile 打 "xx.xx%"）；取最后一个匹配
@@ -82,6 +83,15 @@ class CliAdapter(Adapter):
             "out": str(out_path),
             "tools_dir": str(settings.tools_dir),
         }
+        # voice 类型参数展开成 {<参数名>:wav} / {<参数名>:prompt}：
+        # 音色清单在平台侧统一解析（config.txt + 目录扫描），脚本只收路径和文本
+        for name, desc in spec.inputs.items():
+            if desc.get("type") == "voice" and name in params:
+                voice = find(str(params[name]))
+                if voice is None:
+                    raise AdapterError(f"音色 {params[name]!r} 不存在")
+                values[f"{name}:wav"] = str(voice.wav)
+                values[f"{name}:prompt"] = voice.prompt_text
         argv = [_render(str(arg), values) for arg in command]
 
         # 单卡机器：声明了 free_comfy_vram 的大显存任务，开跑前先让 ComfyUI 卸载模型

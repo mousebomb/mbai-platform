@@ -481,6 +481,29 @@ function Field({
   }
 
   const isNumber = spec.type === "int" || spec.type === "float";
+
+  // 有固定候选值的参数（音色之类）渲染成下拉，避免手打错名字
+  if (spec.options && spec.options.length > 0) {
+    return (
+      <label className="field">
+        <span>
+          {name}
+          {spec.required && <em> *</em>}
+        </span>
+        <select value={value} onChange={(e) => onChange(name, e.target.value)}>
+          {spec.options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        {spec.type === "voice" && (
+          <p className="hint small">候选来自音色目录（config.txt + 目录里的 wav/txt）；新增音色后刷新页面</p>
+        )}
+      </label>
+    );
+  }
+
   return (
     <label className="field">
       <span>

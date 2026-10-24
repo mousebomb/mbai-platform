@@ -30,6 +30,7 @@ from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
 from platform_core.registry import registry
 from platform_core.service import store, worker
 from platform_core.settings import settings
+from platform_core.voices import resolve_options
 from platform_core.workflow import resolve_params
 
 # 素材/产物下载用的 MIME：Windows 的 mimetypes 不认识 webp，也猜不准 wav/mp4
@@ -142,7 +143,13 @@ async def get_asset(asset_id: str) -> FileResponse:
 
 @app.get("/v1/capabilities")
 async def capabilities() -> list[dict]:
-    return [v.info().model_dump() for v in registry.list_variants()]
+    # 音色这类动态候选项在请求时现读（用户往目录里丢 wav 后刷新即可见）
+    out: list[dict] = []
+    for v in registry.list_variants():
+        info = v.info().model_dump()
+        info["inputs"] = resolve_options(info["inputs"])
+        out.append(info)
+    return out
 
 
 @app.get("/v1/matrix")

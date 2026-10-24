@@ -5,6 +5,7 @@ title: "CosyVoice2 声音克隆（零样本）"
 description: >-
   上传 5~15 秒参考音频 + 它的逐字文本，用这个音色把 text 读出来。
   参考文本必须和音频内容一致，否则音色会跑偏。
+  常用音色建议直接放进音色目录（见 audio.tts 的 voice 下拉）。
 model_id: cosyvoice2-0.5b
 engine: cli
 maturity: L1
@@ -17,8 +18,6 @@ cli:
     - '{cosyvoice_home}'
     - '--model'
     - '{cosyvoice_model}'
-    - '--mode'
-    - 'clone'
     - '--text'
     - '{text}'
     - '--prompt-wav'

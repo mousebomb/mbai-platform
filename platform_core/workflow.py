@@ -11,6 +11,7 @@ import random
 from typing import Any
 
 from .registry import VariantSpec, registry
+from .voices import find, list_voices
 
 
 def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
@@ -40,6 +41,13 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
         # 值就是 asset_id 字符串；文件存在性在入队时（API）校验
         if not isinstance(value, str) or not value:
             raise ValueError(f"参数 {name} 需要素材 ID（字符串），收到 {value!r}")
+    elif kind == "voice":
+        # 音色名必须在音色目录里真实存在，避免拼错后白跑一次 40 秒的合成
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"参数 {name} 需要音色名（字符串），收到 {value!r}")
+        if find(value) is None:
+            names = [v.name for v in list_voices()]
+            raise ValueError(f"参数 {name} 的音色 {value!r} 不存在，可选: {names}")
     elif kind == "prompt":
         # 提示词可以是纯文本，也可以是 MOSS Layout JSON（结构化版式）
         if isinstance(value, str):
