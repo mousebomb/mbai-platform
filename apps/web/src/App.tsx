@@ -330,11 +330,23 @@ export default function App() {
                 <div key={artifact.id} className="card">
                   {/* 图片点开看大图；音视频直接内联播放，套 <a> 会误触跳转 */}
                   {artifact.kind === "image" ? (
-                    <a href={artifactUrl(artifact)} target="_blank" rel="noreferrer">
+                    <a
+                      href={artifactUrl(artifact)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="card-media"
+                    >
                       <ArtifactMedia artifact={artifact} />
                     </a>
                   ) : (
-                    <ArtifactMedia artifact={artifact} className="inline-media" />
+                    <div className="card-media">
+                      {artifact.kind === "audio" && (
+                        <span className="media-label">
+                          {String(job.params.voice ?? "克隆")}
+                        </span>
+                      )}
+                      <ArtifactMedia artifact={artifact} />
+                    </div>
                   )}
                   <div className="card-meta">
                     <span>{artifactSpec(artifact)}</span>
@@ -539,7 +551,9 @@ function Field({
 /** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 */
 function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?: string }) {
   const url = artifactUrl(artifact);
-  if (artifact.kind === "audio") return <audio className={className} controls src={url} />;
+  if (artifact.kind === "audio")
+    // preload=metadata：卡片上直接显示时长，不用等用户点播放
+    return <audio className={className} controls preload="metadata" src={url} />;
   if (artifact.kind === "video")
     return <video className={className} controls playsInline src={url} />;
   return <img className={className} src={url} alt={fileName(artifact.path)} loading="lazy" />;

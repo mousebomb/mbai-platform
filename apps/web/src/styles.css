@@ -469,28 +469,40 @@ button.ghost:hover {
   display: block;
 }
 
-.card img {
-  width: 100%;
+/* 媒体区统一 1:1：图片铺满，音视频居中，卡片高度才不会因为产物类型不同而参差 */
+.card-media {
   aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+}
+
+.card-media img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
-/* 音频/视频没有固定宽高比，给个最小高度让卡片不至于塌成一条 */
-.card audio,
-.card video {
+.card-media audio {
   width: 100%;
-  display: block;
+}
+
+.card-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   background: #000;
 }
 
-.card audio {
-  min-height: 54px;
-}
-
-.card video {
-  aspect-ratio: 16 / 9;
-  object-fit: contain;
+/* 音频卡片中间那行字：选用的音色名 */
+.media-label {
+  font-size: 14px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
 }
 
 .card-meta {
