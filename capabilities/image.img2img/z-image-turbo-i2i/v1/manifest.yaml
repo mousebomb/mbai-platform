@@ -1,0 +1,69 @@
+capability: image.img2img
+variant: z-image-turbo-i2i
+version: v1
+title: "Z-Image Turbo 图生图"
+description: >-
+  给一张原图和一句提示词，在保留原图构图的前提下重画（denoise 越低越像原图，1.0 等于重新生成）。
+  输入图先按 megapixels 等比缩放到目标像素量（对齐 32 像素，避免 VAE 尺寸不整除），
+  输出尺寸 = 缩放后的输入尺寸。
+model_id: z-image-turbo
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  image:
+    type: image
+    required: true
+  prompt:
+    type: prompt
+    required: true
+  denoise:
+    type: float
+    default: 0.6
+    min: 0.1
+    max: 1.0
+  megapixels:
+    type: float
+    default: 1.0
+    min: 0.25
+    max: 2.0
+  steps:
+    type: int
+    default: 8
+    min: 4
+    max: 20
+  cfg:
+    type: float
+    default: 1.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: res_multistep
+  scheduler:
+    type: string
+    default: simple
+
+# 三个模型文件按角色注入，具体文件由 profiles/*.yaml 决定（本机可换量化档）
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  text_encoder: "3.inputs.clip_name"
+  vae: "8.inputs.vae_name"
+
+bindings:
+  # 输入图在 worker 里被解析成本机绝对路径，comfy 适配器提交前会上传给引擎换成文件名
+  "6.inputs.image": image
+  "7.inputs.megapixels": megapixels
+  "4.inputs.text": prompt
+  "10.inputs.seed": seed
+  "10.inputs.steps": steps
+  "10.inputs.cfg": cfg
+  "10.inputs.sampler_name": sampler_name
+  "10.inputs.scheduler": scheduler
+  "10.inputs.denoise": denoise
+  "2.inputs.shift": shift
+  # 负向条件按官方模板 zero-out，不对外暴露
+constants:
+  shift: 3

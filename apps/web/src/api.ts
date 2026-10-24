@@ -31,7 +31,7 @@ export interface Job {
 }
 
 export interface InputSpec {
-  type: "string" | "int" | "float" | "prompt" | "text" | "image" | "audio" | "voice";
+  type: "string" | "int" | "float" | "prompt" | "text" | "image" | "audio" | "voice" | "mask";
   required?: boolean;
   default?: string | number;
   min?: number;

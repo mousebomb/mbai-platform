@@ -37,8 +37,9 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
         # 长文本（TTS 台词等）：前端用 textarea，后端只做字符串校验
         if not isinstance(value, str):
             raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
-    elif kind in {"image", "audio"}:
+    elif kind in {"image", "audio", "mask"}:
         # 值就是 asset_id 字符串；文件存在性在入队时（API）校验
+        # mask 也是 PNG 素材，白色 = 要重绘的区域（前端蒙版画布导出）
         if not isinstance(value, str) or not value:
             raise ValueError(f"参数 {name} 需要素材 ID（字符串），收到 {value!r}")
     elif kind == "voice":

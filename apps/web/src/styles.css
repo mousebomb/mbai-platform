@@ -698,3 +698,51 @@ button.ghost:hover {
     justify-content: flex-start;
   }
 }
+
+/* ---------- 蒙版画布（局部重绘） ---------- */
+.mask-editor {
+  margin-top: 8px;
+}
+
+.mask-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #000;
+  cursor: crosshair;
+  /* 触屏/手写笔拖动时不要被页面滚动抢走 */
+  touch-action: none;
+}
+
+.mask-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+/* 当前选中的画笔/橡皮 */
+.mask-tools button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mask-tools button.on:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mask-brush {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mask-brush input[type="range"] {
+  width: 96px;
+}

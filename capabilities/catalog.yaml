@@ -9,11 +9,11 @@ capabilities:
   - id: image.img2img
     title: 参考图生图
     stage: M2
-    note: 未接
+    note: 已接 Z-Image Turbo（denoise 控保留度）
   - id: image.edit
     title: 图像编辑
     stage: M2
-    note: 未接
+    note: 已接 Qwen-Image-Edit 2509
   - id: image.layer_split
     title: 图层分离
     stage: M4
@@ -25,7 +25,7 @@ capabilities:
   - id: image.inpaint
     title: 蒙版重绘
     stage: M2
-    note: 未接
+    note: 已接 Z-Image Turbo（VAEEncodeForInpaint）
   - id: image.controlnet
     title: ControlNet
     stage: M4

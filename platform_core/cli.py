@@ -118,7 +118,16 @@ async def _run(args: argparse.Namespace) -> int:
             print(f"{ERR} --set 需要 key=value 形式，收到 {item!r}")
             return 1
         key, value = item.split("=", 1)
-        params[key] = value
+        # --set 拿到的永远是字符串，按 manifest 声明的类型转换，否则 float/int 参数会被拒
+        kind = (spec.inputs.get(key) or {}).get("type")
+        if kind in {"int", "float"}:
+            try:
+                params[key] = int(value) if kind == "int" else float(value)
+            except ValueError:
+                print(f"{ERR} --set {key} 需要{'整数' if kind == 'int' else '数字'}，收到 {value!r}")
+                return 1
+        else:
+            params[key] = value
 
     job = store.add(
         Job(capability=args.capability, variant=args.variant, model_id=spec.model_id, params=params)

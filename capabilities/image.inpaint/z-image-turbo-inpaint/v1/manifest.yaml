@@ -1,0 +1,68 @@
+capability: image.inpaint
+variant: z-image-turbo-inpaint
+version: v1
+title: "Z-Image Turbo 蒙版重绘"
+description: >-
+  把原图上涂白的区域重新生成，其余像素原样保留（VAEEncodeForInpaint 的标准做法，不需要专门的 inpaint 模型）。
+  grow_mask 往蒙版外围多扩几像素，接缝更自然。
+model_id: z-image-turbo
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  image:
+    type: image
+    required: true
+  mask:
+    # 白色 = 要重绘，黑色 = 保留；前端蒙版画布导出与原图同尺寸的黑白 PNG
+    type: mask
+    required: true
+  prompt:
+    type: prompt
+    required: true
+  grow_mask:
+    type: int
+    default: 8
+    min: 0
+    max: 64
+  steps:
+    type: int
+    default: 8
+    min: 4
+    max: 20
+  cfg:
+    type: float
+    default: 1.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: res_multistep
+  scheduler:
+    type: string
+    default: simple
+
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  text_encoder: "3.inputs.clip_name"
+  vae: "8.inputs.vae_name"
+
+bindings:
+  "6.inputs.image": image
+  "7.inputs.image": mask
+  "9.inputs.grow_mask_by": grow_mask
+  "4.inputs.text": prompt
+  "10.inputs.seed": seed
+  "10.inputs.steps": steps
+  "10.inputs.cfg": cfg
+  "10.inputs.sampler_name": sampler_name
+  "10.inputs.scheduler": scheduler
+  "2.inputs.shift": shift
+
+# denoise 固定 1.0：蒙版外的像素由 VAEEncodeForInpaint 的 noise_mask 锁住，
+# 这里再降 denoise 只会让重绘区不够干净
+constants:
+  shift: 3
+  denoise: 1.0

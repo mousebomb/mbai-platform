@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MaskEditor } from "./MaskEditor";
 import {
   api,
   artifactUrl,
@@ -123,7 +124,6 @@ export default function App() {
 
   // 最新一个 running 任务（列表按创建时间倒序，find 取到的就是最新）
   const runningJob = useMemo(() => jobs.find((j) => j.state === "running") ?? null, [jobs]);
-
   // 对它开 SSE 实时刷进度；出错（含服务端正常断流）静默关闭、退回轮询
   useEffect(() => {
     if (!runningJob) return;
@@ -229,6 +229,14 @@ export default function App() {
     return c;
   }, [matrix]);
 
+  // 蒙版画布的源图：优先取名为 image 的输入，没有就取第一个 image 类型的输入
+  const sourceImageName = useMemo(() => {
+    if (!variant) return "";
+    const entries = Object.entries(variant.inputs);
+    const named = entries.find(([n, s]) => n === "image" && s.type === "image");
+    return named?.[0] ?? entries.find(([, s]) => s.type === "image")?.[0] ?? "";
+  }, [variant]);
+
   const gpu = health?.engine.devices?.[0];
   const engineOk = health?.engine.ok ?? false;
 
@@ -286,6 +294,8 @@ export default function App() {
                 asset={assets[name]}
                 uploading={!!uploading[name]}
                 onFile={uploadFile}
+                // 蒙版要画在「同一变体的原图」上：取第一个 image 输入
+                maskSource={assets[sourceImageName]}
               />
             ))}
 
@@ -412,6 +422,7 @@ function Field({
   asset,
   uploading,
   onFile,
+  maskSource,
 }: {
   name: string;
   spec: InputSpec;
@@ -420,7 +431,22 @@ function Field({
   asset?: Asset;
   uploading?: boolean;
   onFile?: (name: string, file: File) => void;
+  /** mask 字段要用它当画布底图 */
+  maskSource?: Asset;
 }) {
+  // 蒙版：不是上传文件，而是在原图上涂抹后自动导出 PNG
+  if (spec.type === "mask") {
+    return (
+      <div className="field">
+        <span>
+          {name}
+          {spec.required && <em> *</em>}
+        </span>
+        <MaskEditor source={maskSource} assetId={value} onChange={(id) => onChange(name, id)} />
+      </div>
+    );
+  }
+
   // 图片 / 音频输入：选择文件 → 立即上传 → 预览，表单值存 asset_id
   if (spec.type === "image" || spec.type === "audio") {
     const isAudio = spec.type === "audio";
