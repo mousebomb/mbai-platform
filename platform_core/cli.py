@@ -9,6 +9,8 @@ import sys
 from .adapters import get_adapter
 from .comfy_client import ComfyClient
 from .contracts import Job, JobState
+from .gc import apply as gc_apply
+from .gc import plan as gc_plan
 from .registry import MATURITY_LEVELS, registry
 from .service import store, worker
 from .settings import settings
@@ -127,6 +129,42 @@ async def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _gc(args: argparse.Namespace) -> int:
+    items = gc_plan(
+        store,
+        artifacts_days=args.artifacts_days,
+        uploads_days=args.uploads_days,
+        logs_days=args.logs_days,
+        engine_input_days=args.engine_input_days,
+        engine_output_days=args.engine_output_days,
+    )
+    if not items:
+        print(f"{OK} 没有可清理的内容")
+        return 0
+
+    by_cat: dict[str, list] = {}
+    for it in items:
+        by_cat.setdefault(it.category, []).append(it)
+    for cat in sorted(by_cat):
+        lst = by_cat[cat]
+        total = sum(i.size for i in lst)
+        print(f"[{cat}] {len(lst)} 项，{total / 1024 / 1024:.2f} MB")
+        for it in lst[:10]:
+            print(f"   - {it.path.name}  ({it.size / 1024 / 1024:.2f} MB)  {it.reason}")
+        if len(lst) > 10:
+            print(f"   ... 其余 {len(lst) - 10} 项")
+
+    total = sum(i.size for i in items)
+    if not args.apply:
+        print(f"\n{OK} 预演：共 {len(items)} 项，可释放 {total / 1024 / 1024:.2f} MB")
+        print("     加 --apply 才会真的删除；用户产物默认不动（--artifacts-days N 才清）")
+        return 0
+
+    done, freed = gc_apply(items)
+    print(f"\n{OK} 已删除 {done} 项，释放 {freed / 1024 / 1024:.2f} MB")
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="platform")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -148,11 +186,23 @@ def main() -> None:
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8000)
 
+    p_gc = sub.add_parser("gc", help="按 TTL 清理中间产物（默认只预演）")
+    p_gc.add_argument("--apply", action="store_true", help="真的删除；不加只打印计划")
+    p_gc.add_argument(
+        "--artifacts-days", type=int, default=0, help="用户产物保留天数，0=不清理（默认）"
+    )
+    p_gc.add_argument("--uploads-days", type=int, default=7, help="上传素材保留天数")
+    p_gc.add_argument("--logs-days", type=int, default=7, help="CLI 日志保留天数")
+    p_gc.add_argument("--engine-input-days", type=int, default=7, help="引擎 input 副本保留天数")
+    p_gc.add_argument("--engine-output-days", type=int, default=7, help="引擎 output 副本保留天数")
+
     args = parser.parse_args()
     if args.cmd == "doctor":
         sys.exit(asyncio.run(_doctor()))
     if args.cmd == "run":
         sys.exit(asyncio.run(_run(args)))
+    if args.cmd == "gc":
+        sys.exit(_gc(args))
     if args.cmd == "serve":
         import uvicorn
 
