@@ -16,9 +16,12 @@ from fastapi.staticfiles import StaticFiles
 
 from platform_core.adapters import get_adapter
 from platform_core.assets import (
+    ASSET_EXTS,
     IMAGE_EXTS,
     MAX_ASSET_BYTES,
+    MEDIA_TYPES,
     asset_path,
+    detect_audio,
     detect_format,
     ext_matches,
     image_size,
@@ -29,13 +32,8 @@ from platform_core.service import store, worker
 from platform_core.settings import settings
 from platform_core.workflow import resolve_params
 
-# 素材预览用的 MIME（Windows 的 mimetypes 不认识 webp，显式指定）
-_ASSET_MEDIA = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-}
+# 素材/产物下载用的 MIME：Windows 的 mimetypes 不认识 webp，也猜不准 wav/mp4
+_ASSET_MEDIA = MEDIA_TYPES
 
 
 @asynccontextmanager
@@ -91,7 +89,7 @@ async def health() -> dict:
 
 @app.post("/v1/assets")
 async def upload_asset(request: Request, file: UploadFile = File(...)) -> dict:
-    """上传输入图：只认 png/jpg/jpeg/webp，≤ 20 MB，落盘 data/uploads/<id>.<ext>。"""
+    """上传素材：图片（png/jpg/webp）或音频（wav/mp3/flac/ogg/m4a），≤ 20 MB，落盘 data/uploads/<id>.<ext>。"""
     # 先看 Content-Length 挡掉明显超限的请求，避免大文件先整个落进临时文件
     cl = request.headers.get("content-length")
     if cl and cl.isdigit() and int(cl) > MAX_ASSET_BYTES + 1024 * 1024:
@@ -99,10 +97,11 @@ async def upload_asset(request: Request, file: UploadFile = File(...)) -> dict:
 
     original = Path(file.filename or "").name
     ext = Path(original).suffix.lower()
-    if ext not in IMAGE_EXTS:
+    if ext not in ASSET_EXTS:
         raise HTTPException(
             status_code=400,
-            detail=f"不支持的图片类型 {ext or '(无扩展名)'}，只允许 png/jpg/jpeg/webp",
+            detail=f"不支持的素材类型 {ext or '(无扩展名)'}，只允许 "
+            "png/jpg/jpeg/webp/wav/mp3/flac/ogg/m4a",
         )
 
     data = await file.read(MAX_ASSET_BYTES + 1)
@@ -112,16 +111,20 @@ async def upload_asset(request: Request, file: UploadFile = File(...)) -> dict:
         raise HTTPException(status_code=413, detail="文件超过 20 MB 上限")
 
     # 文件头必须和扩展名对上，防止文本/伪造文件混进来
-    fmt = detect_format(data)
+    is_image = ext in IMAGE_EXTS
+    fmt = detect_format(data) if is_image else detect_audio(data)
     if fmt is None or not ext_matches(ext, fmt):
-        raise HTTPException(status_code=400, detail="文件内容不是有效的 PNG/JPEG/WebP 图片")
+        expected = "PNG/JPEG/WebP 图片" if is_image else "WAV/MP3/FLAC/OGG/M4A 音频"
+        raise HTTPException(status_code=400, detail=f"文件内容不是有效的 {expected}")
 
-    size = image_size(data)
+    # 宽高只对图片有意义；音频没有
+    size = image_size(data) if is_image else None
     asset_id = "ast_" + uuid.uuid4().hex[:12]
     (settings.uploads_dir / f"{asset_id}{ext}").write_bytes(data)
     return {
         "id": asset_id,
         "filename": original,
+        "kind": "image" if is_image else "audio",
         "bytes": len(data),
         "width": size[0] if size else None,
         "height": size[1] if size else None,
@@ -272,7 +275,8 @@ async def get_file(job_id: str, filename: str) -> FileResponse:
     path = settings.artifacts_dir / job_id / filename
     if not path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
-    return FileResponse(path)
+    # 显式给 MIME：浏览器靠它决定是 <audio>/<video> 内联播放还是下载
+    return FileResponse(path, media_type=_ASSET_MEDIA.get(path.suffix.lower()))
 
 
 # 前端构建产物由同一个进程托管：局域网只需 8000 一个地址

@@ -69,8 +69,8 @@ capabilities:
   - id: audio.tts
     title: 语音合成
     stage: M3
-    note: 未接
+    note: 已提前接入（CosyVoice2）
   - id: audio.voice_clone
     title: 声音克隆
     stage: M3
-    note: 未接
+    note: 已提前接入（CosyVoice2 零样本）

@@ -359,6 +359,16 @@ button.primary:disabled {
   border: 1px solid var(--line);
 }
 
+/* 非图片产物在任务行里只放个类型标签，别塞播放器 */
+.thumb-tag {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
 button.ghost {
   background: transparent;
   border: 1px solid var(--line);
@@ -464,6 +474,23 @@ button.ghost:hover {
   aspect-ratio: 1 / 1;
   object-fit: cover;
   display: block;
+}
+
+/* 音频/视频没有固定宽高比，给个最小高度让卡片不至于塌成一条 */
+.card audio,
+.card video {
+  width: 100%;
+  display: block;
+  background: #000;
+}
+
+.card audio {
+  min-height: 54px;
+}
+
+.card video {
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
 }
 
 .card-meta {

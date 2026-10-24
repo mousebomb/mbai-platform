@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   api,
   artifactUrl,
+  type Artifact,
   type Asset,
   type CapabilityMatrixRow,
   type Health,
@@ -328,10 +329,10 @@ export default function App() {
               {gallery.map(({ job, artifact }) => (
                 <div key={artifact.id} className="card">
                   <a href={artifactUrl(artifact)} target="_blank" rel="noreferrer">
-                    <img src={artifactUrl(artifact)} alt={fileName(artifact.path)} loading="lazy" />
+                    <ArtifactMedia artifact={artifact} />
                   </a>
                   <div className="card-meta">
-                    <span>{artifact.width}×{artifact.height}</span>
+                    <span>{artifactSpec(artifact)}</span>
                     <span>{job.variant}</span>
                   </div>
                   <button
@@ -403,8 +404,9 @@ function Field({
   uploading?: boolean;
   onFile?: (name: string, file: File) => void;
 }) {
-  // 图片输入：选择文件 → 立即上传 → 显示缩略图，表单值存 asset_id
-  if (spec.type === "image") {
+  // 图片 / 音频输入：选择文件 → 立即上传 → 预览，表单值存 asset_id
+  if (spec.type === "image" || spec.type === "audio") {
+    const isAudio = spec.type === "audio";
     return (
       <label className="field">
         <span>
@@ -413,7 +415,7 @@ function Field({
         </span>
         <input
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept={isAudio ? "audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" : "image/png,image/jpeg,image/webp"}
           disabled={uploading}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -423,13 +425,35 @@ function Field({
         {uploading && <p className="hint small">上传中…</p>}
         {asset && !uploading && (
           <div className="asset-preview">
-            <img src={asset.url} alt={asset.filename} />
+            {isAudio ? (
+              <audio controls src={asset.url} />
+            ) : (
+              <img src={asset.url} alt={asset.filename} />
+            )}
             <span className="asset-name">
               {asset.filename}
               {asset.width && asset.height ? ` · ${asset.width}×${asset.height}` : ""}
             </span>
           </div>
         )}
+      </label>
+    );
+  }
+
+  // 长文本：TTS 台词这类，给个大输入框
+  if (spec.type === "text") {
+    return (
+      <label className="field">
+        <span>
+          {name}
+          {spec.required && <em> *</em>}
+        </span>
+        <textarea
+          rows={5}
+          value={value}
+          placeholder="要合成的文本"
+          onChange={(e) => onChange(name, e.target.value)}
+        />
       </label>
     );
   }
@@ -484,9 +508,26 @@ function Field({
   );
 }
 
+/** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 */
+function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?: string }) {
+  const url = artifactUrl(artifact);
+  if (artifact.kind === "audio") return <audio className={className} controls src={url} />;
+  if (artifact.kind === "video")
+    return <video className={className} controls playsInline src={url} />;
+  return <img className={className} src={url} alt={fileName(artifact.path)} loading="lazy" />;
+}
+
+/** 产物规格：图片是宽高，音视频是时长 */
+function artifactSpec(a: Artifact): string {
+  if (a.kind === "image") return a.width && a.height ? `${a.width}×${a.height}` : "";
+  return a.duration ? `${a.duration.toFixed(1)}s` : "";
+}
+
 function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
-  const prompt = typeof job.params.prompt === "string" ? job.params.prompt : JSON.stringify(job.params.prompt);
+  // 图片任务用 prompt，TTS 用 text；两个都没有才显示占位
+  const promptSource = job.params.prompt ?? job.params.text;
+  const prompt = typeof promptSource === "string" ? promptSource : JSON.stringify(promptSource ?? "");
   const done = TERMINAL.includes(job.state);
 
   return (
@@ -499,8 +540,11 @@ function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; o
             {job.variant} · {duration(job)} · {new Date(job.created_at * 1000).toLocaleTimeString()}
           </div>
         </div>
-        {job.artifacts[0] && (
+        {job.artifacts[0] && job.artifacts[0].kind === "image" && (
           <img className="thumb" src={artifactUrl(job.artifacts[0])} alt="" loading="lazy" />
+        )}
+        {job.artifacts[0] && job.artifacts[0].kind !== "image" && (
+          <span className="thumb-tag">[{job.artifacts[0].kind}]</span>
         )}
         {!done && (
           <button

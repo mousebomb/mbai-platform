@@ -9,6 +9,8 @@ export interface Artifact {
   path: string;
   width: number | null;
   height: number | null;
+  // 音视频时长（秒）；图片为 null
+  duration: number | null;
   created_at: number;
 }
 
@@ -29,7 +31,7 @@ export interface Job {
 }
 
 export interface InputSpec {
-  type: "string" | "int" | "float" | "prompt" | "image";
+  type: "string" | "int" | "float" | "prompt" | "text" | "image" | "audio";
   required?: boolean;
   default?: string | number;
   min?: number;
@@ -40,6 +42,7 @@ export interface InputSpec {
 export interface Asset {
   id: string;
   filename: string;
+  kind?: "image" | "audio";
   bytes: number;
   width: number | null;
   height: number | null;

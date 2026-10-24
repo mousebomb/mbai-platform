@@ -112,6 +112,13 @@ async def _run(args: argparse.Namespace) -> int:
         "sampler_name": args.sampler,
     }
     params = {k: v for k, v in raw.items() if v is not None}
+    # --set key=value：给不认识的变体补参数（TTS 的 text、声音克隆的素材 id 等）
+    for item in args.set or []:
+        if "=" not in item:
+            print(f"{ERR} --set 需要 key=value 形式，收到 {item!r}")
+            return 1
+        key, value = item.split("=", 1)
+        params[key] = value
 
     job = store.add(
         Job(capability=args.capability, variant=args.variant, model_id=spec.model_id, params=params)
@@ -125,7 +132,12 @@ async def _run(args: argparse.Namespace) -> int:
         return 1
     print(f"{OK} 完成，用时 {job.finished_at - job.started_at:.1f}s")
     for a in job.artifacts:
-        print(f"  {a.path}  {a.width}x{a.height}")
+        detail = (
+            f"{a.width}x{a.height}"
+            if a.kind == "image"
+            else (f"{a.duration:.2f}s" if a.duration else "时长未知")
+        )
+        print(f"  {a.path}  [{a.kind}] {detail}")
     return 0
 
 
@@ -174,13 +186,15 @@ def main() -> None:
     p_run = sub.add_parser("run", help="本地直接跑一个任务")
     p_run.add_argument("--capability", default="image.txt2img")
     p_run.add_argument("--variant", required=True)
-    p_run.add_argument("--prompt", required=True)
+    p_run.add_argument("--prompt", default=None)
     p_run.add_argument("--width", type=int)
     p_run.add_argument("--height", type=int)
     p_run.add_argument("--steps", type=int)
     p_run.add_argument("--cfg", type=float)
     p_run.add_argument("--seed", type=int)
     p_run.add_argument("--sampler", default=None)
+    # 给参数不固定的变体补值（TTS 的 text、克隆的素材 id 等），可重复
+    p_run.add_argument("--set", action="append", default=[], metavar="K=V")
 
     p_serve = sub.add_parser("serve", help="启动 HTTP 服务")
     p_serve.add_argument("--host", default="127.0.0.1")

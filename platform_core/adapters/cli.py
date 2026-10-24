@@ -12,17 +12,19 @@ from __future__ import annotations
 import re
 import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 from ..assets import image_size
 from ..contracts import Artifact
+from ..media import KIND_BY_SUFFIX, media_duration
 from ..registry import VariantSpec
 from ..settings import settings
 from .base import Adapter, AdapterError, EngineState, EngineStatus
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
-# 产物扩展名 → Artifact.kind；本轮只有图片产物，视频/音频等 CLI 输出再接
-_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+# 产物扩展名 → Artifact.kind；不认识的扩展名直接跳过，不当产物收
+_MEDIA_KINDS = KIND_BY_SUFFIX
 # 日志里的百分比进度（realesrgan 按 tile 打 "xx.xx%"）；取最后一个匹配
 _PCT_RE = re.compile(r"(\d+(?:\.\d+)?)%")
 # 执行中进度上限：1.0 只留给 SUCCEEDED
@@ -65,8 +67,15 @@ class CliAdapter(Adapter):
         output_ext = str(cli.get("output_ext", "png")).lstrip(".")
         out_path = out_dir / f"output.{output_ext}"
 
-        # 占位符取值：constants 打底、params 覆盖（与 manifest 约定一致）
+        # 占位符取值：settings 字段打底（引擎路径因机器而异，manifest 不写死）、
+        # constants 覆盖、params 最高优先级（与 manifest 约定一致）
+        scalar_settings = {
+            k: v
+            for k, v in settings.model_dump().items()
+            if isinstance(v, (str, int, float, Path))
+        }
         values: dict[str, Any] = {
+            **scalar_settings,
             **spec.constants,
             **params,
             "out": str(out_path),
@@ -151,20 +160,33 @@ class CliAdapter(Adapter):
         out_dir = settings.artifacts_dir / job_id
         artifacts: list[Artifact] = []
         for path in sorted(out_dir.iterdir()):
-            if not path.is_file() or path.suffix.lower() not in _IMAGE_EXTS:
+            if not path.is_file():
                 continue
-            size = image_size(path.read_bytes())
-            artifacts.append(
-                Artifact(
-                    job_id=job_id,
-                    kind="image",
-                    path=str(path),
-                    width=size[0] if size else None,
-                    height=size[1] if size else None,
+            kind = _MEDIA_KINDS.get(path.suffix.lower())
+            if kind is None:
+                continue
+            if kind == "image":
+                size = image_size(path.read_bytes())
+                artifacts.append(
+                    Artifact(
+                        job_id=job_id,
+                        kind="image",
+                        path=str(path),
+                        width=size[0] if size else None,
+                        height=size[1] if size else None,
+                    )
                 )
-            )
+            else:
+                artifacts.append(
+                    Artifact(
+                        job_id=job_id,
+                        kind=kind,
+                        path=str(path),
+                        duration=media_duration(path),
+                    )
+                )
         if not artifacts:
-            raise AdapterError("CLI 执行完成但 out_dir 下没有图片产物")
+            raise AdapterError("CLI 执行完成但 out_dir 下没有可识别的产物（png/wav/mp4…）")
         return artifacts
 
     def _kill_tree(self, proc: subprocess.Popen) -> None:

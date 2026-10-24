@@ -38,6 +38,8 @@ class Artifact(BaseModel):
     path: str
     width: int | None = None
     height: int | None = None
+    # 音视频时长（秒）；图片为 None。从文件头读，不信参数
+    duration: float | None = None
     created_at: float = Field(default_factory=time.time)
 
 

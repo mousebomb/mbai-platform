@@ -32,7 +32,11 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
     elif kind == "string":
         if not isinstance(value, str):
             raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
-    elif kind == "image":
+    elif kind == "text":
+        # 长文本（TTS 台词等）：前端用 textarea，后端只做字符串校验
+        if not isinstance(value, str):
+            raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
+    elif kind in {"image", "audio"}:
         # 值就是 asset_id 字符串；文件存在性在入队时（API）校验
         if not isinstance(value, str) or not value:
             raise ValueError(f"参数 {name} 需要素材 ID（字符串），收到 {value!r}")

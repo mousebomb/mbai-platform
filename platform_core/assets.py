@@ -15,6 +15,26 @@ from .settings import settings
 
 # 允许上传的图片扩展名
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+# 允许上传的音频扩展名（声音克隆的参考音色）
+AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
+# 素材总集合：asset_path 按它找文件
+ASSET_EXTS = IMAGE_EXTS | AUDIO_EXTS
+
+# 扩展名 → MIME。素材下载和产物下载共用这张表，避免两边各维护一份
+MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+}
 # 上传大小上限（20 MB）
 MAX_ASSET_BYTES = 20 * 1024 * 1024
 _ID_RE = re.compile(r"^ast_[0-9a-f]{12}$")
@@ -31,6 +51,21 @@ def detect_format(data: bytes) -> str | None:
         return "jpeg"
     if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "webp"
+    return None
+
+
+def detect_audio(data: bytes) -> str | None:
+    """按魔数识别音频家族：wav / flac / ogg / mp3 / m4a；识别不了返回 None。"""
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return "wav"
+    if data[:4] == b"fLaC":
+        return "flac"
+    if data[:4] == b"OggS":
+        return "ogg"
+    if data[:3] == b"ID3" or data[:2] in {b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"}:
+        return "mp3"
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        return "m4a"
     return None
 
 
@@ -100,7 +135,7 @@ def asset_path(asset_id: str) -> Path | None:
     """asset_id → 磁盘路径；id 格式非法或文件不存在返回 None。"""
     if not _ID_RE.fullmatch(asset_id):
         return None
-    for ext in IMAGE_EXTS:
+    for ext in ASSET_EXTS:
         p = settings.uploads_dir / f"{asset_id}{ext}"
         if p.exists():
             return p

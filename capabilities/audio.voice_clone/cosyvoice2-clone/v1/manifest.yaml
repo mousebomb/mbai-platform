@@ -1,0 +1,49 @@
+capability: audio.voice_clone
+variant: cosyvoice2-clone
+version: v1
+title: "CosyVoice2 声音克隆（零样本）"
+description: >-
+  上传 5~15 秒参考音频 + 它的逐字文本，用这个音色把 text 读出来。
+  参考文本必须和音频内容一致，否则音色会跑偏。
+model_id: cosyvoice2-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice_python}'
+    - '{root}\scripts\engines\cosyvoice_tts.py'
+    - '--repo'
+    - '{cosyvoice_home}'
+    - '--model'
+    - '{cosyvoice_model}'
+    - '--mode'
+    - 'clone'
+    - '--text'
+    - '{text}'
+    - '--prompt-wav'
+    - '{voice_sample}'
+    - '--prompt-text'
+    - '{prompt_text}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 900
+  output_ext: wav
+
+inputs:
+  voice_sample:
+    type: audio
+    required: true
+  prompt_text:
+    type: string
+    required: true
+  text:
+    type: text
+    required: true
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0
