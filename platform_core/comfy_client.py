@@ -42,6 +42,11 @@ class ComfyClient:
         r.raise_for_status()
         return r.json()
 
+    async def free(self) -> bool:
+        """让引擎卸载模型并清空显存缓存（别的引擎要抢显存时用）。"""
+        r = await self._http.post("/free", json={"unload_models": True, "free_memory": True})
+        return r.status_code == 200
+
     async def object_info(self, node: str | None = None) -> dict[str, Any]:
         path = f"/object_info/{node}" if node else "/object_info"
         r = await self._http.get(path)

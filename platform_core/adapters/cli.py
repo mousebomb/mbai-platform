@@ -19,6 +19,7 @@ from ..assets import image_size
 from ..contracts import Artifact
 from ..media import KIND_BY_SUFFIX, media_duration
 from ..registry import VariantSpec
+from ..resources import release_comfy
 from ..settings import settings
 from .base import Adapter, AdapterError, EngineState, EngineStatus
 
@@ -82,6 +83,10 @@ class CliAdapter(Adapter):
             "tools_dir": str(settings.tools_dir),
         }
         argv = [_render(str(arg), values) for arg in command]
+
+        # 单卡机器：声明了 free_comfy_vram 的大显存任务，开跑前先让 ComfyUI 卸载模型
+        if cli.get("free_comfy_vram"):
+            await release_comfy()
 
         log_path = settings.logs_dir / f"{job_id}.log"
         logf = open(log_path, "wb")

@@ -328,9 +328,14 @@ export default function App() {
               {gallery.length === 0 && <div className="empty">还没有作品</div>}
               {gallery.map(({ job, artifact }) => (
                 <div key={artifact.id} className="card">
-                  <a href={artifactUrl(artifact)} target="_blank" rel="noreferrer">
-                    <ArtifactMedia artifact={artifact} />
-                  </a>
+                  {/* 图片点开看大图；音视频直接内联播放，套 <a> 会误触跳转 */}
+                  {artifact.kind === "image" ? (
+                    <a href={artifactUrl(artifact)} target="_blank" rel="noreferrer">
+                      <ArtifactMedia artifact={artifact} />
+                    </a>
+                  ) : (
+                    <ArtifactMedia artifact={artifact} className="inline-media" />
+                  )}
                   <div className="card-meta">
                     <span>{artifactSpec(artifact)}</span>
                     <span>{job.variant}</span>

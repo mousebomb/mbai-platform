@@ -1,0 +1,77 @@
+capability: video.img2video
+variant: framepack-i2v
+version: v1
+title: "FramePack 图生视频（首帧驱动）"
+description: >-
+  给一张图和一句动作描述，从这张图开始生成 30fps 视频。
+  12 GB 卡上 2 秒片（2 节 × 25 步）约 5~8 分钟；开跑前会让 ComfyUI 先释放显存。
+  首帧会被自动缩放到 640 档并居中裁剪。
+model_id: framepack-i2v-hy
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{framepack_python}'
+    - '{root}\scripts\engines\framepack_i2v.py'
+    - '--repo'
+    - '{framepack_home}'
+    - '--hf-home'
+    - '{framepack_hf_home}'
+    - '--image'
+    - '{image}'
+    - '--prompt'
+    - '{prompt}'
+    - '--seconds'
+    - '{seconds}'
+    - '--steps'
+    - '{steps}'
+    - '--cfg'
+    - '{cfg}'
+    - '--gs'
+    - '{gs}'
+    - '--seed'
+    - '{seed}'
+    - '--latent-window'
+    - '{latent_window}'
+    - '--gpu-preserve'
+    - '{gpu_preserve}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 3600
+  output_ext: mp4
+  # 这台机器只有一张 12 GB 卡，FramePack 要 10 GB+，开跑前必须让 ComfyUI 让位
+  free_comfy_vram: true
+
+inputs:
+  image:
+    type: image
+    required: true
+  prompt:
+    type: text
+    required: true
+  seconds:
+    type: float
+    default: 2.0
+    min: 1.0
+    max: 10.0
+  steps:
+    type: int
+    default: 25
+    min: 10
+    max: 50
+  cfg:
+    type: float
+    default: 1.0
+  gs:
+    type: float
+    default: 10.0
+  seed:
+    type: int
+    default: 0
+  latent_window:
+    type: int
+    default: 9
+  gpu_preserve:
+    type: float
+    default: 6.0

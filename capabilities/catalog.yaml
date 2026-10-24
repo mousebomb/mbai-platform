@@ -1,4 +1,4 @@
-# 能力目标全集：18 项，含尚未接入的（首页矩阵要诚实显示「缺什么」）。
+# 能力目标全集：19 项，含尚未接入的（首页矩阵要诚实显示「缺什么」）。
 # 某能力的成熟度等级 = 它所有变体 maturity 的最大值；没有变体的 = L0。
 # stage 对应 docs/platform-plan-v2.md §6 的分阶段（M1~M4）。
 capabilities:
@@ -46,6 +46,10 @@ capabilities:
     title: 文生视频
     stage: M3
     note: 未接
+  - id: video.img2video
+    title: 图生视频
+    stage: M1
+    note: 已接入（FramePack 首帧驱动）
   - id: video.motion_transfer
     title: 动作迁移
     stage: M3
