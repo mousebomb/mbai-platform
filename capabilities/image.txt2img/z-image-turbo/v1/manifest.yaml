@@ -5,7 +5,7 @@ title: "Z-Image Turbo 6B 快速出图"
 description: >-
   8 步 turbo 蒸馏模型，秒级出图档，适合快速预览。
   cfg 固定 1.0，负向提示词按官方模板 zero-out，不对外暴露。
-model_id: z-image-turbo-int8
+model_id: z-image-turbo
 workflow: workflow.json
 engine: comfy
 maturity: L1
@@ -53,14 +53,13 @@ bindings:
   "7.inputs.cfg": cfg
   "7.inputs.sampler_name": sampler_name
   "7.inputs.scheduler": scheduler
-  # 模型文件名与采样 shift 固定注入，不对外暴露
-  "1.inputs.unet_name": unet_name
-  "3.inputs.clip_name": clip_name
-  "8.inputs.vae_name": vae_name
   "2.inputs.shift": shift
 
+# 三个模型文件按「角色」注入，具体用哪个文件由 profiles/*.yaml 决定（本机可换量化档）
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  text_encoder: "3.inputs.clip_name"
+  vae: "8.inputs.vae_name"
+
 constants:
-  unet_name: z_image_turbo_int8_convrot.safetensors
-  clip_name: qwen_3_4b_fp8_mixed.safetensors
-  vae_name: ae.safetensors
   shift: 3

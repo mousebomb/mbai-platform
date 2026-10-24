@@ -1,0 +1,68 @@
+capability: image.txt2img
+variant: qwen-image-aio
+version: v1
+title: "Qwen-Image AIO（合并版，质量档）"
+description: >-
+  社区合并的 Qwen-Image 全量检查点：UNet + Qwen2.5-VL 文本编码器 + VAE 都在一个文件里。
+  12GB 显存靠换页跑，768²/8 步约 80~90 秒，适合出精品不适合连拍。
+model_id: qwen-image-aio
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  negative_prompt:
+    type: string
+    default: ""
+  width:
+    type: int
+    default: 768
+    min: 512
+    max: 1328
+    multiple_of: 16
+  height:
+    type: int
+    default: 768
+    min: 512
+    max: 1328
+    multiple_of: 16
+  steps:
+    type: int
+    default: 8
+    min: 4
+    max: 30
+  cfg:
+    type: float
+    default: 1.0
+  seed:
+    type: int
+    default: -1
+  sampler_name:
+    type: string
+    default: euler
+  scheduler:
+    type: string
+    default: simple
+
+# 检查点文件名由 profile 决定（合并版没有可下载的官方来源，只能指向本机文件）
+model_bind:
+  checkpoint: "1.inputs.ckpt_name"
+
+bindings:
+  "2.inputs.text": prompt
+  "3.inputs.text": negative_prompt
+  "4.inputs.width": width
+  "4.inputs.height": height
+  "5.inputs.shift": shift
+  "6.inputs.seed": seed
+  "6.inputs.steps": steps
+  "6.inputs.cfg": cfg
+  "6.inputs.sampler_name": sampler_name
+  "6.inputs.scheduler": scheduler
+
+constants:
+  # Qwen-Image 官方模板的采样位移
+  shift: 3.1

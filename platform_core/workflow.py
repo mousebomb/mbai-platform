@@ -10,7 +10,7 @@ import json
 import random
 from typing import Any
 
-from .registry import VariantSpec
+from .registry import VariantSpec, registry
 
 
 def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
@@ -74,6 +74,17 @@ def build_workflow(spec: VariantSpec, params: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"{spec.capability}/{spec.variant} 没有声明 workflow（CLI 引擎走 cli.command）")
     # utf-8-sig：Windows 上被记事本/PowerShell 写过的文件常带 BOM
     workflow = json.loads(path.read_text(encoding="utf-8-sig"))
+
+    # 模型文件按「角色」注入：profile 能换文件而不动 manifest。
+    # 只传 basename —— ComfyUI 的加载器只接受它自己目录列表里的文件名。
+    for role, node_path in spec.model_bind.items():
+        file_path = registry.resolve_file(spec.model_id, role)
+        if file_path is None or not file_path.exists():
+            raise ValueError(
+                f"模型 {spec.model_id} 的角色 {role} 找不到文件；"
+                f"检查 models/*.yaml 的 files 或 profiles/local.yaml"
+            )
+        _set_path(workflow, node_path, file_path.name)
 
     # seed 传 -1 表示随机；ComfyUI 的 seed 是 64 位整数
     if params.get("seed", 0) is not None and params.get("seed", 0) < 0:

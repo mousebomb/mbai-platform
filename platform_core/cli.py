@@ -48,23 +48,26 @@ async def _doctor() -> int:
     print("[模型文件]")
     missing = 0
     for model in registry.models.values():
-        for role, rel in model.files.items():
-            path = next(
-                (
-                    base / rel
-                    for base in [settings.models_dir, *settings.extra_model_dirs]
-                    if (base / rel).exists()
-                ),
-                None,
-            )
-            if path:
-                print(f"  {OK} {model.id}/{role}: {path}  ({path.stat().st_size / 1e9:.2f} GB)")
+        roles = sorted(set(model.files) | set(registry.profiles.get(model.id, {})))
+        if not roles:
+            print(f"  {OK} {model.id} ({model.kind}): 无外部权重，随工具包分发")
+            continue
+        # 可还原性直接影响「换机器能不能自动补齐」，必须显式打出来
+        tag = model.kind + ("，可还原" if model.can_restore else "，需自备")
+        print(f"  {OK} {model.id} ({tag})")
+        for role in roles:
+            path = registry.resolve_file(model.id, role)
+            src = registry.binding_source(model.id, role)
+            if path is not None and path.exists():
+                print(
+                    f"      {OK} {role}: {path}  "
+                    f"({path.stat().st_size / 1e9:.2f} GB, 绑定={src})"
+                )
             else:
                 ok = False
                 missing += 1
-                # 有 source 的能自动补，没 source 的只能人工搬，必须说清楚
-                hint = "" if model.source else "（无下载来源，需人工放置）"
-                print(f"  {ERR} {model.id}/{role}: 缺失 {rel}{hint}")
+                hint = "" if model.can_restore else "（无下载来源，需人工放置）"
+                print(f"      {ERR} {role}: 缺失 {path}{hint}")
     if missing:
         print(f"     补下载: uv run python scripts\\download-models.py --models-dir {settings.models_dir}")
     print()

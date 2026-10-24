@@ -70,12 +70,15 @@ async def health() -> dict:
 
     missing = []
     for model in registry.models.values():
-        # files 为空的模型（权重随工具包分发）没有可检查的文件，跳过
-        if not model.files:
+        # 角色集合 = 模型声明 + profile 覆盖；空集合表示权重随工具包分发，不检查
+        roles = set(model.files) | set(registry.profiles.get(model.id, {}))
+        if not roles:
             continue
-        path = model.resolve_path()
-        if path is None or not path.exists():
-            missing.append(model.id)
+        for role in roles:
+            path = registry.resolve_file(model.id, role)
+            if path is None or not path.exists():
+                missing.append(f"{model.id}/{role}")
+                break
 
     return {
         "engine": engine,
