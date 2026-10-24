@@ -593,9 +593,14 @@ function artifactSpec(a: Artifact): string {
 
 function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
-  // 图片任务用 prompt，TTS 用 text；两个都没有才显示占位
+  // 图片任务用 prompt，TTS 用 text；抠图/超分这类没有提示词，交给下面的占位符
   const promptSource = job.params.prompt ?? job.params.text;
-  const prompt = typeof promptSource === "string" ? promptSource : JSON.stringify(promptSource ?? "");
+  const prompt =
+    typeof promptSource === "string"
+      ? promptSource
+      : promptSource
+        ? JSON.stringify(promptSource)
+        : "";
   const done = TERMINAL.includes(job.state);
 
   return (
