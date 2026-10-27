@@ -1,0 +1,68 @@
+capability: audio.voice_design
+variant: blend
+version: v1
+title: "双音色插值（CosyVoice2）"
+description: >-
+  取两段参考音频的声纹向量做球面插值，合成一个原本不存在的音色。
+  ratio=0 就是 A、ratio=1 就是 B，听感中点约 0.38~0.40（按 F0 校准，不是 0.5）。
+  两段参考音频各配它的逐字文本，文本必须和音频内容一致，否则音色会跑偏。
+  单次约 100 s（含 35 s 模型加载）。
+model_id: cosyvoice2-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice_python}'
+    - '{root}\scripts\engines\cosyvoice_blend.py'
+    - '--repo'
+    - '{cosyvoice_home}'
+    - '--model'
+    - '{cosyvoice_model}'
+    - '--voice-a'
+    - '{voice_a}'
+    - '--prompt-a'
+    - '{prompt_a}'
+    - '--voice-b'
+    - '{voice_b}'
+    - '--prompt-b'
+    - '{prompt_b}'
+    - '--ratio'
+    - '{ratio}'
+    - '--text'
+    - '{text}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 900
+  output_ext: wav
+
+inputs:
+  # 两段参考音频都走平台的 audio 素材链路（值 = asset_id，worker 解析成绝对路径）
+  voice_a:
+    type: audio
+    required: true
+  prompt_a:
+    type: string
+    required: true
+  voice_b:
+    type: audio
+    required: true
+  prompt_b:
+    type: string
+    required: true
+  # 平台的 float 只在入队时转成数字，不校验 min/max；越界由引擎脚本拦
+  ratio:
+    type: float
+    default: 0.4
+    min: 0.0
+    max: 1.0
+  text:
+    type: text
+    required: true
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0

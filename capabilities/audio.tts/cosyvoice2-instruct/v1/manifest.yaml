@@ -1,0 +1,53 @@
+capability: audio.tts
+variant: cosyvoice2-instruct
+version: v1
+title: "CosyVoice2 情感指令合成"
+description: >-
+  参考音频决定"谁在说"，自然语言指令决定"怎么说"。
+  instruct 填一句描述，例如「用兴奋、语速稍快的语气说」「用低沉缓慢、略带疲惫的语气说」
+  「用平静的旁白语气说，不要有感情起伏」「用四川话说」。
+  音色从本机清单里选，不需要参考文本（指令模式下 prompt 位置放的就是指令）。
+  长文本会自动按句切分再拼接，所以一次可以提交一整段。
+model_id: cosyvoice2-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice_python}'
+    - '{root}\scripts\engines\cosyvoice_tts.py'
+    - '--repo'
+    - '{cosyvoice_home}'
+    - '--model'
+    - '{cosyvoice_model}'
+    - '--text'
+    - '{text}'
+    - '--prompt-wav'
+    - '{voice:wav}'
+    - '--instruct'
+    - '{instruct}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 1800
+  output_ext: wav
+
+inputs:
+  voice:
+    type: voice
+    required: true
+    options_from: voices
+  text:
+    type: text
+    required: true
+  # 自由文本而不是枚举：CosyVoice 的指令空间包含情绪/语速/方言/年龄/场景，
+  # 枚举会把它锁死，且平台不该替调用方做语义判断
+  instruct:
+    type: string
+    required: true
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0
