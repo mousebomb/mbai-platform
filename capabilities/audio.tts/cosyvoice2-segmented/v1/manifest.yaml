@@ -1,0 +1,68 @@
+capability: audio.tts
+variant: cosyvoice2-segmented
+version: v1
+title: "CosyVoice2 逐句分段合成（长文朗读）"
+description: >-
+  按句切分、逐句合成、再按设计好的节奏拼接。一次加载模型跑完整段，适合有声书/旁白。
+  两个直接收益：末尾不会被 EOS 硬切（整段生成的尾静音可能只剩 20ms，等于切在音节中间）；
+  句间停顿由 gap_sentence 指定，不再完全交给模型。
+  max_len 控制每句最多多少字（超长按逗号再切），太小会把语义切碎，太大等于回到整段生成。
+  注意：实测它与「整段一次合成」在停顿率、F0 起伏上差别不大（同一文本同音色的对比数据见
+  devlog/20261027-tts-segmented.md），听感差异需要人耳判断，不要指望它自动带来"更有感情"。
+model_id: cosyvoice2-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice_python}'
+    - '{root}\scripts\engines\cosyvoice_tts_segmented.py'
+    - '--repo'
+    - '{cosyvoice_home}'
+    - '--model'
+    - '{cosyvoice_model}'
+    - '--text'
+    - '{text}'
+    - '--prompt-wav'
+    - '{voice:wav}'
+    - '--instruct'
+    - '{instruct}'
+    - '--max-len'
+    - '{max_len}'
+    - '--gap-sentence'
+    - '{gap_sentence}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 3600
+  output_ext: wav
+
+inputs:
+  voice:
+    type: voice
+    required: true
+    options_from: voices
+  text:
+    type: text
+    required: true
+  instruct:
+    type: string
+    required: true
+  # 每句字数上限：太大就回到"整段一口气"的老毛病，太小会把语义切碎（一句话断成两半）
+  max_len:
+    type: int
+    default: 30
+    min: 10
+    max: 80
+  # 句末停顿：0.25~0.5 之间比较像朗读，超过 0.6 会明显"一句一顿"
+  gap_sentence:
+    type: float
+    default: 0.38
+    min: 0.1
+    max: 1.0
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0
