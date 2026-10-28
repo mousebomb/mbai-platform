@@ -1,0 +1,45 @@
+capability: audio.voice_design
+variant: qwen3-voice-design
+version: v1
+title: "Qwen3-TTS VoiceDesign：用一句话造音色"
+description: >-
+  输入一句音色描述（如「19 岁女生，清脆甜美，带笑意，语速中等」），生成一个新音色。
+  产物是**声音卡**：output.wav + 同目录 output.txt（逐字文本）。把这两个文件按
+  <名字>.wav / <名字>.txt 放进音色目录，CosyVoice3 的所有 TTS 变体就能拿它念书。
+  定位与 blend 互补：blend 只能在已有真人之间插值，VoiceDesign 能无中生有（不受音色库限制）。
+  代价：生成的是合成语音，本身带一点「模型味」；每张卡约 25 s（含模型加载）。
+model_id: qwen3-tts-voicedesign
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{qwen3_tts_python}'
+    - '{root}\scripts\engines\qwen3_voice_design.py'
+    - '--models'
+    - '{qwen3_tts_models}'
+    - '--instruct'
+    - '{description}'
+    - '--text'
+    - '{text}'
+    - '--language'
+    - '{language}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 900
+  output_ext: wav
+
+inputs:
+  # 音色描述是自由文本，不是枚举：音色空间本来就包含年龄/性别/音高/气声/语速
+  description:
+    type: text
+    required: true
+  # 固化音色用的文本；默认这段 10 秒左右的中性文本，一般不用改
+  text:
+    type: text
+    required: true
+    default: "花看半开，酒饮微醺。总有人会带着那颗热忱的心，穿越人海拥抱你。从此山河过往，凛冬天明，你都有我。"
+  language:
+    type: string
+    required: true
+    default: "Chinese"

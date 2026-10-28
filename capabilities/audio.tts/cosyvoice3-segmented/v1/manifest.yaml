@@ -1,0 +1,66 @@
+capability: audio.tts
+variant: cosyvoice3-segmented
+version: v1
+title: "CosyVoice 3.0 逐句分段合成（长文朗读）"
+description: >-
+  和 cosyvoice2-segmented 同样的分段策略（按句切、裁尾静音、固定句间停顿、语速异常重合成），
+  换成 Fun-CosyVoice3-0.5B 引擎。实测差别只有两处：生僻字发音更准（「微醺」13 个音色里
+  11 个读对，2.0 是 0 个）；音色与语速基本不变。
+  3.0 支持拼音注音，写在文本里即可：`酒饮微[x][ūn]`——注意是**替换**那个字，
+  写成 `酒饮微醺[x][ūn]` 会变成「微熏熏」。
+  声纹插值（audio.voice_design/blend）仍走 CosyVoice2，两个引擎并存、互不影响。
+model_id: cosyvoice3-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice3_python}'
+    - '{root}\scripts\engines\cosyvoice3_tts.py'
+    - '--repo'
+    - '{cosyvoice3_home}'
+    - '--model'
+    - '{cosyvoice3_model}'
+    - '--text'
+    - '{text}'
+    - '--prompt-wav'
+    - '{voice:wav}'
+    - '--instruct'
+    - '{instruct}'
+    - '--max-len'
+    - '{max_len}'
+    - '--gap-sentence'
+    - '{gap_sentence}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 3600
+  output_ext: wav
+
+inputs:
+  voice:
+    type: voice
+    required: true
+    options_from: voices
+  text:
+    type: text
+    required: true
+  instruct:
+    type: string
+    required: true
+  max_len:
+    type: int
+    default: 30
+    min: 10
+    max: 80
+  gap_sentence:
+    type: float
+    default: 0.38
+    min: 0.1
+    max: 1.0
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0
