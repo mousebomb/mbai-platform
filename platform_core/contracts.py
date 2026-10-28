@@ -75,4 +75,6 @@ class VariantInfo(BaseModel):
     model_id: str
     title: str = ""
     description: str = ""
+    # 引擎适配器 kind：前端据此判断「提交按钮要不要等 ComfyUI 在线」
+    engine: str = "comfy"
     inputs: dict[str, Any] = Field(default_factory=dict)

@@ -69,6 +69,8 @@ export interface VariantInfo {
   model_id: string;
   title: string;
   description: string;
+  /** 引擎适配器 kind：comfy 需要 ComfyUI 在线，cli 起本地进程即可 */
+  engine: string;
   inputs: Record<string, InputSpec>;
 }
 

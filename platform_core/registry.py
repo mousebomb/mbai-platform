@@ -147,6 +147,7 @@ class VariantSpec(BaseModel):
             model_id=self.model_id,
             title=self.title,
             description=self.description,
+            engine=self.engine,
             inputs=self.inputs,
         )
 

@@ -239,6 +239,9 @@ export default function App() {
 
   const gpu = health?.engine.devices?.[0];
   const engineOk = health?.engine.ok ?? false;
+  // CLI 变体（TTS / 超分 / FramePack）起的是本地进程，不依赖 ComfyUI，
+  // 所以只有 comfy 变体需要等引擎在线
+  const needsComfy = variant ? variant.engine === "comfy" : true;
 
   return (
     <div className="app">
@@ -301,8 +304,12 @@ export default function App() {
 
           {notice && <div className="notice">{notice}</div>}
 
-          <button className="primary" onClick={submit} disabled={!variant || !engineOk || offline}>
-            {engineOk ? "提交到队列" : "引擎离线"}
+          <button
+            className="primary"
+            onClick={submit}
+            disabled={!variant || (needsComfy && !engineOk) || offline}
+          >
+            {!variant ? "选择变体" : needsComfy && !engineOk ? "引擎离线" : "提交到队列"}
           </button>
           <p className="hint small">任务进队列后页面可关，回来看结果即可。</p>
         </section>
@@ -352,7 +359,11 @@ export default function App() {
                     <div className="card-media">
                       {artifact.kind === "audio" && (
                         <span className="media-label">
-                          {String(job.params.voice ?? "克隆")}
+                          {/* TTS 用音色名；造卡没有音色参数，标成「声音卡」而不是「克隆」 */}
+                          {String(
+                            job.params.voice ??
+                              (job.capability.startsWith("audio.voice_design") ? "声音卡" : "克隆")
+                          )}
                         </span>
                       )}
                       <ArtifactMedia artifact={artifact} />
@@ -600,8 +611,8 @@ function artifactSpec(a: Artifact): string {
 
 function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
-  // 图片任务用 prompt，TTS 用 text；抠图/超分这类没有提示词，交给下面的占位符
-  const promptSource = job.params.prompt ?? job.params.text;
+  // 图片任务用 prompt，TTS 用 text，造卡用 description；都没有就交给下面的占位符
+  const promptSource = job.params.prompt ?? job.params.text ?? job.params.description;
   const prompt =
     typeof promptSource === "string"
       ? promptSource
