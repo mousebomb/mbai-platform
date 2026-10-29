@@ -30,8 +30,14 @@ apps/web/dist/
 # ---------- 本地配置与凭据 ----------
 .env
 .env.*
+# 模板必须入库，否则 clone 下来不知道要配什么
+!.env.example
 # 本机模型绑定：换量化档/魔改模型只改这里，不入库（见 profiles/example.yaml）
 profiles/local.yaml
+# 本机「把别处的权重链进模型池」的清单，不入库（见 profiles/local-models.example.json）
+profiles/local-models.json
+# 内部规划稿：含本机磁盘布局与历史决策，只留本地
+docs/platform-plan-v1-superseded.md
 
 # ---------- 权重：永远不进代码库，只由 scripts/ 下载 ----------
 *.safetensors
