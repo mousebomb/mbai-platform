@@ -1,6 +1,6 @@
 ﻿# 一次性引导：拉 CosyVoice 仓库（固定 commit）→ 建 conda 环境 → 装依赖 → 下模型 → 写 .env
 #
-# 用法（默认参数对应「仓库内自包含」布局，不对应开发机上的 E:\AI\CosyVoice）：
+# 用法（默认参数对应「仓库内自包含」布局，不对应任何特定机器的安装位置）：
 #   powershell -ExecutionPolicy Bypass -File scripts\bootstrap-cosyvoice.ps1
 #
 # 只要环境不要 4.8 GB 模型：
@@ -302,7 +302,7 @@ Write-Host "      -> $envPath"
 
 Write-Host ''
 Write-Host '[OK] done. next:'
-Write-Host '  1) uv run platform doctor'
+Write-Host '  1) uv run mbai doctor'
 Write-Host "  2) voices are user data (not in git): put <name>.wav + <name>.txt into $voicesDir"
 Write-Host '     (legacy format also works: point PLATFORM_COSYVOICE_CONFIG at your config.txt)'
 Write-Host '  3) start the server and run audio.tts / audio.voice_design once from the web UI'

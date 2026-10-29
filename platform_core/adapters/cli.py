@@ -39,7 +39,10 @@ def _render(template: str, values: dict[str, Any]) -> str:
     def repl(m: re.Match[str]) -> str:
         name = m.group(1)
         if name not in values:
-            raise AdapterError(f"cli.command 里的占位符 {{{name}}} 没有对应的参数/常量/内置值")
+            raise AdapterError(
+                f"cli.command 里的占位符 {{{name}}} 没有对应的参数/常量/内置值"
+                f"（引擎路径类占位符请在仓库根目录的 .env 里配置，模板见 .env.example）"
+            )
         return str(values[name])
 
     return _PLACEHOLDER.sub(repl, template)

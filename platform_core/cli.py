@@ -187,7 +187,7 @@ def _gc(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="platform")
+    parser = argparse.ArgumentParser(prog="mbai")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("doctor", help="环境与模型预检")
@@ -241,7 +241,7 @@ def main() -> None:
         # 延迟导入：不用 MCP 的人不必付 mcp 包的启动开销
         from .mcp_server import main as mcp_main
 
-        sys.argv = ["platform mcp"]
+        sys.argv = ["mbai mcp"]
         if args.url:
             sys.argv += ["--url", args.url]
         sys.argv += ["--transport", args.transport]

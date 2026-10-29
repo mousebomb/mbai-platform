@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
         await worker.stop()
 
 
-app = FastAPI(title="AI Platform", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="mbai-platform", version="0.1.0", lifespan=lifespan)
 
 # 局域网前端直连，先放开；后续收敛到固定来源
 app.add_middleware(

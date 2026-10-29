@@ -249,7 +249,7 @@ export default function App() {
         <div className="brand">
           <span className="logo">◈</span>
           <div>
-            <div className="title">AI Platform</div>
+            <div className="title">mbai-platform</div>
             <div className="subtitle">统一模型池 · 统一队列</div>
           </div>
         </div>

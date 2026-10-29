@@ -27,7 +27,7 @@
 1. **torch 必须 cu130**。`comfy_kitchen` 的原生 int8 / w4a8 算子要求 CUDA 13；cu128 下它会把 backend 标成 `disabled: True`，量化矩阵乘退回 eager 逐层实现。启动日志里搜 `Found comfy_kitchen backend cuda` 看 `disabled` 是否为 `False`。
 2. **不要 `--lowvram`**。模型 staged 5.16 GB + 文本编码器 7.0 GB，单看总量超过 12 GB，但 ComfyUI 的 DynamicVRAM 会按时序换入换出；强制 lowvram 反而退化成逐层搬运。
 
-## 文件落位（D:\AI\models）
+## 文件落位（`PLATFORM_MODELS_DIR`）
 
 ```
 diffusion_models/moss_image_base_int8_convrot.safetensors   5.41 GiB

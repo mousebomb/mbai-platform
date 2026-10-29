@@ -81,4 +81,4 @@ capabilities:
   - id: audio.voice_design
     title: 音色设计
     stage: M3
-    note: 已接双音色插值（中间态不稳，见 devlog）
+    note: 已接双音色插值（中间态不稳）

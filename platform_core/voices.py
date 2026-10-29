@@ -31,9 +31,10 @@ class Voice:
     source: str
 
 
-def _from_config(path: Path) -> list[Voice]:
+def _from_config(path: Path | None) -> list[Voice]:
     """解析 config.txt：跳过注释/空行/全局键值行，只认三段式。"""
-    if not path.is_file():
+    # 未配置（.env 里没写 PLATFORM_COSYVOICE_CONFIG）时当作没有这个来源
+    if path is None or not path.is_file():
         return []
     voices: list[Voice] = []
     # 相对路径按 config.txt 所在目录解析（老项目就是 ./voiceclone/xxx.wav 这么写的）
@@ -56,9 +57,9 @@ def _from_config(path: Path) -> list[Voice]:
     return voices
 
 
-def _from_dir(path: Path) -> list[Voice]:
+def _from_dir(path: Path | None) -> list[Voice]:
     """扫目录：`<名字>.wav` 必须配 `<名字>.txt`。"""
-    if not path.is_dir():
+    if path is None or not path.is_dir():
         return []
     voices: list[Voice] = []
     for wav in sorted(path.glob("*.wav")):
@@ -73,6 +74,9 @@ def _from_dir(path: Path) -> list[Voice]:
 
 
 def _builtin_default() -> list[Voice]:
+    # 官方 demo 自带的参考音频；CosyVoice 没配置时就没有这个兜底音色
+    if settings.cosyvoice_home is None:
+        return []
     wav = settings.cosyvoice_home / "asset" / "zero_shot_prompt.wav"
     if not wav.is_file():
         return []
