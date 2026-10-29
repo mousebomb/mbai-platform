@@ -1,0 +1,17 @@
+id: sd15-community
+name: SD1.5 社区检查点池
+family: stable-diffusion-1.5
+# 不是一个具体模型，是本机 checkpoints/sd15/ 目录下的 SD1.5 检查点集合，运行时由参数选择
+kind: local
+license: unknown
+commercial_ok: false
+vram_profile: comfortable
+# 没有固定权重文件：具体文件由变体的 checkpoint 参数决定，所以 files 为空
+files: {}
+restorable: false
+lineage:
+  base: stable-diffusion-v1.5
+  note: 社区 merge / finetune，各自许可证不同，逐个看原发布页
+notes: >-
+  文件由 scripts/link-local-models.ps1 从 A1111 的 models\Stable-diffusion 建符号链接而来，
+  不复制、不占额外空间。画质不是这几年的水平，留着的理由是风格专精、512 出图便宜、老提示词可复现。

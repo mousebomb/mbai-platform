@@ -1,0 +1,21 @@
+{
+  "_说明": "复制成 profiles/local-models.json 后按本机改；json 不支持注释，用 _说明 这类字段记备注",
+  "links": [
+    {
+      "Target": "D:/a1111/models/Stable-diffusion/realisticVisionV20_v20.safetensors",
+      "Dir": "checkpoints/sd15",
+      "Why": "SD1.5 写实基准"
+    },
+    {
+      "Target": "D:/comfyui-models/diffusion_models/zImageTurboQuantized_fp8E4m3fn.safetensors",
+      "Dir": "diffusion_models",
+      "Why": "Z-Image Turbo fp8 量化版（社区转换）"
+    }
+  ],
+  "bulk": [
+    {
+      "Src": "D:/a1111/models/Lora",
+      "Dir": "loras/sd15"
+    }
+  ]
+}

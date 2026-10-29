@@ -1,0 +1,23 @@
+id: cosyvoice2-0.5b
+name: CosyVoice2-0.5B
+family: cosyvoice
+kind: upstream
+license: apache-2.0
+commercial_ok: true
+vram_profile: comfortable
+# 目录型权重（llm.pt / flow.pt / hift.pt / speech_tokenizer_v2.onnx ...），
+# 不拆成单文件进模型池：CosyVoice 加载器要的是整个目录
+files: {}
+# 目录型权重，靠 scripts\bootstrap-cosyvoice.ps1 还原（不是 download-models.py 的单文件模式），
+# 所以 files 留空、doctor 不逐个校验；这里的 true 只表示「有可复现的还原路径」
+restorable: true
+notes: >-
+  目录型权重（llm.pt / flow.pt / hift.pt / speech_tokenizer_v2.onnx ...），不拆成单文件进模型池：
+  CosyVoice 加载器要的是整个目录。
+  **必须钉 revision 9d5c22a8（2024-12-13）**：2025-04-07 那次 "add flow cache model" 之后，
+  仓库里 cosyvoice.yaml 改名 cosyvoice2.yaml、权重换成 cache 版，需要 CausalConditionalDecoder
+  等新代码才认；而平台钉的 CosyVoice commit 86e26f54 是 2025-01 的，只认旧版。
+  还原方式：powershell -File scripts\bootstrap-cosyvoice.ps1（clone + conda 环境 + 按 sha 下模型 + 写 .env）；
+  默认装到仓库内 engines\cosyvoice\pretrained_models\CosyVoice2-0.5B，
+  作者开发机用的是别的布局，靠 .env 的 PLATFORM_COSYVOICE_MODEL 指过去。
+  无内置音色（缺 spk2info.pt），只能用零样本：给参考音频 + 参考文本。

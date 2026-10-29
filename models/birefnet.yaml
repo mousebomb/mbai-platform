@@ -1,0 +1,21 @@
+id: birefnet
+name: BiRefNet 抠图
+family: birefnet
+# 上游权重，ComfyUI 核心的 background_removal 加载器直接吃这个文件
+kind: upstream
+license: mit
+commercial_ok: true
+vram_profile: light
+files:
+  background_removal: background_removal/birefnet.safetensors
+source:
+  type: huggingface
+  repo: Comfy-Org/BiRefNet
+  files:
+    - remote: background_removal/birefnet.safetensors
+      local: background_removal/birefnet.safetensors
+      min_gb: 0.35
+notes: >-
+  ComfyUI 原生支持（PR #12747）：LoadBackgroundRemovalModel + RemoveBackground，
+  模型放 models/background_removal/。1024px 通用权重，头发/毛发边缘干净；
+  MIT 许可可商用。输入超过 ~1500px 想更细致要换 BiRefNet_HR（2K）版。

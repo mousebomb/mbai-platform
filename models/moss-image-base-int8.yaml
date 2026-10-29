@@ -1,0 +1,24 @@
+id: moss-image-base-int8
+name: MOSS-Image 5B Base (int8)
+family: moss-image
+license: apache-2.0
+commercial_ok: true
+vram_profile: degraded
+files:
+  diffusion_model: diffusion_models/moss_image_base_int8_convrot.safetensors
+  text_encoder: text_encoders/qwen3.5_9b_w4a8_gptq.safetensors
+  vae: vae/flux2-vae_small.safetensors
+# 新机器靠这个字段一键还原；min_gb 只抓残缺下载
+source:
+  type: huggingface
+  repo: Comfy-Org/MOSS-Image
+  files:
+    - remote: diffusion_models/moss_image_base_int8_convrot.safetensors
+      min_gb: 4.8
+    - remote: text_encoders/qwen3.5_9b_w4a8_gptq.safetensors
+      min_gb: 6.5
+    - remote: vae/flux2-vae_small.safetensors
+      min_gb: 0.2
+notes: >-
+  Base 未做 CFG 蒸馏，官方推荐 >=50 步（1024x1024 实测 78.8s）。
+  每次任务会重新加载文本编码器，约 5~7s 固定开销。

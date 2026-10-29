@@ -1,0 +1,19 @@
+id: qwen-image-aio
+name: Qwen-Image AIO（社区合并版 v14.1）
+family: qwen-image
+# 合并魔改：UNet + Qwen2.5-VL 文本编码器 + VAE 打包在一个文件里，来源不可复现
+kind: merged
+license: unknown
+commercial_ok: false
+vram_profile: degraded
+files:
+  # 相对 F:/AI/ComfyUI/models（extra_model_dirs），ComfyUI 的 CheckpointLoaderSimple 直接认
+  checkpoint: checkpoints/Qwen-Rapid-AIO-NSFW-v14.1.safetensors
+# 没有 source：换机器必须自己搬这个 26.5 GB 的文件
+restorable: false
+lineage:
+  base: qwen-image
+  note: 社区 merge，含微调与内置编码器/VAE，无法精确复现
+notes: >-
+  20B 级模型打包成一个 26.5 GB 检查点，12GB 显存靠 DynamicVRAM 换入换出。
+  768x768 / 8 步实测 84s，1024 会更慢。只适合当质量档，不适合连拍。

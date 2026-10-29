@@ -1,0 +1,40 @@
+id: qwen-image-edit-2509
+name: Qwen-Image-Edit 2509（fp8 + Lightning 4 步）
+family: qwen-image
+# 量化衍生：官方 bf16 转 fp8，再挂 4 步蒸馏 LoRA
+kind: quantized
+license: apache-2.0
+commercial_ok: true
+vram_profile: degraded
+files:
+  diffusion_model: diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
+  text_encoder: text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+  vae: vae/qwen_image_vae.safetensors
+  lora: loras/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
+lineage:
+  base: qwen_image_edit_2509
+  quant: fp8_e4m3fn
+  accelerate: Qwen-Image-Edit-2509-Lightning-4steps
+# 四个文件来自三个仓库，所以按文件覆盖 repo
+source:
+  type: huggingface
+  repo: Comfy-Org/Qwen-Image-Edit_ComfyUI
+  files:
+    - remote: split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
+      local: diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors
+      min_gb: 17.0
+    - remote: split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+      local: text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+      min_gb: 7.8
+      repo: Comfy-Org/Qwen-Image_ComfyUI
+    - remote: split_files/vae/qwen_image_vae.safetensors
+      local: vae/qwen_image_vae.safetensors
+      min_gb: 0.2
+      repo: Comfy-Org/Qwen-Image_ComfyUI
+    - remote: Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
+      local: loras/Qwen-Image-Edit-2509-Lightning-4steps-V1.0-bf16.safetensors
+      min_gb: 0.7
+      repo: lightx2v/Qwen-Image-Lightning
+notes: >-
+  20B 编辑模型 fp8 版 + 4 步蒸馏 LoRA，cfg 1.0 / euler / simple。
+  12GB 显存靠 DynamicVRAM 换页；输入图会被 FluxKontextImageScale 自动缩放到合适尺寸。

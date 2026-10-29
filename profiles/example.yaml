@@ -1,0 +1,25 @@
+# 示例：把某个模型换成你自己的量化版 / 魔改版
+#
+# 用法：把需要的段落复制进 profiles/local.yaml（不要直接改本文件），
+# 然后 `uv run mbai doctor` 确认文件被认到。
+#
+# 注意：文件必须落在 ComfyUI 能扫到的目录里，否则引擎加载器根本看不到它：
+#   - 扩散模型 → diffusion_models/ 或 unet/
+#   - 完整检查点 → checkpoints/
+#   - 文本编码器 → text_encoders/ 或 clip/
+#   - VAE → vae/
+# 文件在别的盘（比如 F 盘历史池）时，用 scripts/link-local-models.ps1 建符号链接，
+# 不要复制，也不要把链接放进仓库。
+
+# 1) 换 DiT 量化档：只覆盖一个角色，其余角色仍用 models/*.yaml 的定义
+# z-image-turbo:
+#   diffusion_model: diffusion_models/zImageTurboQuantized_fp8E4m3fn.safetensors
+
+# 2) 换合并检查点（整包替换）
+# qwen-image-aio:
+#   checkpoint: checkpoints/My-Qwen-Merge-v2.safetensors
+
+# 3) 换文本编码器 / VAE
+# moss-image-sft-int8:
+#   text_encoder: text_encoders/my_qwen_encoder.safetensors
+#   vae: vae/my_vae.safetensors

@@ -1,0 +1,24 @@
+id: qwen3-tts-voicedesign
+name: Qwen3-TTS-12Hz-1.7B-VoiceDesign
+family: qwen3-tts
+kind: upstream
+license: apache-2.0
+commercial_ok: true
+vram_profile: comfortable
+# 目录型权重（llm / tokenizer / config），整个目录一起加载，不拆单文件
+files: {}
+# 没有入库的还原脚本：按 notes 手工下载（hf-mirror 可用）
+restorable: false
+notes: >-
+  官方名 Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign，约 3.4 GB；依赖同一套
+  Qwen3-TTS-Tokenizer-12Hz（另需约 1.5 GB）。实测 12 GB 显存够用（bf16）。
+  手工还原：
+    1) conda create -n qwen3tts python=3.12
+       pip install -U qwen-tts
+       pip install --force-reinstall torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+       （不显式指定 CUDA 索引会装成 CPU 版 torch，1.7B 根本跑不动）
+    2) HF_ENDPOINT=https://hf-mirror.com + HF_HUB_DISABLE_XET=1 下两个目录：
+       Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign  → <你的模型目录>/
+       Qwen/Qwen3-TTS-Tokenizer-12Hz        → <你的模型目录>/
+  用途：只做「造声音卡」（audio.voice_design/qwen3-voice-design），不参与念书。
+  Base 模型（-Base）没有 instruct，不能给克隆音色下情绪指令，因此没接。

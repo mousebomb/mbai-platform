@@ -1,0 +1,24 @@
+id: moss-image-sft-int8
+name: MOSS-Image 5B SFT (int8)
+family: moss-image
+license: apache-2.0
+commercial_ok: true
+vram_profile: degraded
+files:
+  diffusion_model: diffusion_models/moss_image_sft_int8_convrot.safetensors
+  text_encoder: text_encoders/qwen3.5_9b_w4a8_gptq.safetensors
+  vae: vae/flux2-vae_small.safetensors
+# 新机器靠这个字段一键还原；min_gb 只抓残缺下载
+source:
+  type: huggingface
+  repo: Comfy-Org/MOSS-Image
+  files:
+    - remote: diffusion_models/moss_image_sft_int8_convrot.safetensors
+      min_gb: 4.8
+    - remote: text_encoders/qwen3.5_9b_w4a8_gptq.safetensors
+      min_gb: 6.5
+    - remote: vae/flux2-vae_small.safetensors
+      min_gb: 0.2
+notes: >-
+  精调版，文字分组与版式更整齐，日常默认用这个变体。
+  1024x1024 / 25 步实测 46.2s，采样约 1.5 s/it。

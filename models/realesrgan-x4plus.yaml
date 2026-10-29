@@ -1,0 +1,12 @@
+id: realesrgan-x4plus
+name: Real-ESRGAN x4plus
+family: realesrgan
+license: bsd-3-clause
+commercial_ok: true
+vram_profile: comfortable
+# 权重随 Real-ESRGAN ncnn-vulkan 工具包分发，不落 models 热池，所以 files 为空
+files: {}
+notes: >-
+  通用/写实向超分模型。权重在 tools\realesrgan\models\ 下，由
+  scripts/download-tools.ps1 随工具包一起安装，不经过 download-models.py。
+  平涂插画用 animevideov3 更稳，x4plus 对写实照片锐化更强。

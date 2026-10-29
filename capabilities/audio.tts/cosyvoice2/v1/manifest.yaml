@@ -1,0 +1,49 @@
+capability: audio.tts
+variant: cosyvoice2
+version: v1
+title: "CosyVoice2 语音合成"
+description: >-
+  文本转语音，支持中文/英文/日语混读。voice 从音色目录里选：
+  config.txt 登记的音色，加上目录里成对的 wav + txt；想让新音色出现，
+  丢一个 `<名字>.wav` + `<名字>.txt` 进去刷新页面即可。
+  一次性进程：加载模型约 35 s，合成本身几秒。
+model_id: cosyvoice2-0.5b
+engine: cli
+maturity: L1
+
+cli:
+  command:
+    - '{cosyvoice_python}'
+    - '{root}\scripts\engines\cosyvoice_tts.py'
+    - '--repo'
+    - '{cosyvoice_home}'
+    - '--model'
+    - '{cosyvoice_model}'
+    - '--text'
+    - '{text}'
+    - '--prompt-wav'
+    - '{voice:wav}'
+    - '--prompt-text'
+    - '{voice:prompt}'
+    - '--speed'
+    - '{speed}'
+    - '--out'
+    - '{out}'
+  timeout_sec: 900
+  output_ext: wav
+
+inputs:
+  text:
+    type: text
+    required: true
+  voice:
+    # voice 类型：平台的音色清单里选；CLI 适配器会展开成 {voice:wav} / {voice:prompt}
+    # 不写 default：音色名是每台机器自己的，默认值由 API 按实际清单下发
+    type: voice
+    required: true
+    options_from: voices
+  speed:
+    type: float
+    default: 1.0
+    min: 0.5
+    max: 2.0

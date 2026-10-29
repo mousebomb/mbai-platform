@@ -1,0 +1,12 @@
+id: realesr-animevideov3
+name: Real-ESRGAN animevideov3
+family: realesrgan
+license: bsd-3-clause
+commercial_ok: true
+vram_profile: comfortable
+# 权重随 Real-ESRGAN ncnn-vulkan 工具包分发，不落 models 热池，所以 files 为空
+files: {}
+notes: >-
+  动漫向超分模型。权重在 tools\realesrgan\models\ 下，由
+  scripts/download-tools.ps1 随工具包一起安装，不经过 download-models.py。
+  本地 ncnn-vulkan 执行，显存占用很小，vram_profile 按 comfortable 记。

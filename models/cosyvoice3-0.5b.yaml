@@ -1,0 +1,27 @@
+id: cosyvoice3-0.5b
+name: Fun-CosyVoice3-0.5B-2512
+family: cosyvoice
+kind: upstream
+license: apache-2.0
+commercial_ok: true
+vram_profile: comfortable
+# 目录型权重（llm.pt / flow.pt / hift.pt / speech_tokenizer_v3.onnx ...），
+# 不拆成单文件进模型池：CosyVoice 加载器要的是整个目录
+files: {}
+# 目前没有入库的还原脚本（2.0 有 bootstrap-cosyvoice.ps1），所以标 false：
+# doctor 会提示「需自备」，避免下一个人以为能一键补齐。
+restorable: false
+notes: >-
+  目录型权重，官方发布名 Fun-CosyVoice3-0.5B-2512（2025-12）。约 8.3 GB
+  （llm.pt 1.9 GB / llm.rl.pt 1.9 GB / flow.pt 1.27 GB / hift.pt 79 MB /
+  两个 speech_tokenizer_v3 onnx 各 925 MB）。
+  手工还原（本机已验证）：
+    1) git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git <仓库目录>
+    2) conda create -n cosyvoice3 --clone cosyvoice
+       pip install transformers==4.51.3 x-transformers==2.11.24
+    3) 用 hf-mirror 下模型（HF_HUB_DISABLE_XET=1）：
+       snapshot_download('FunAudioLLM/Fun-CosyVoice3-0.5B-2512',
+                         local_dir=r'<仓库目录>\pretrained_models\Fun-CosyVoice3-0.5B')
+  必须与 2.0 分开装：3.0 的 tokenizer/接口与 2.0 不同，混装会让存量变体失效。
+  用途分工：3.0 只做 TTS（发音更准，支持 `[声母][带调韵母]` 注音）；
+  声纹插值（audio.voice_design/blend）继续用 CosyVoice2。

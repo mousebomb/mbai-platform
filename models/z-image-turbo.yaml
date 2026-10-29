@@ -1,0 +1,33 @@
+id: z-image-turbo
+name: Z-Image Turbo 6B
+family: z-image
+# 量化衍生：由 bf16 上游转 int8（convrot），可用 profile 换成别的量化档
+kind: quantized
+license: apache-2.0
+commercial_ok: true
+vram_profile: degraded
+files:
+  diffusion_model: diffusion_models/z_image_turbo_int8_convrot.safetensors
+  text_encoder: text_encoders/qwen_3_4b_fp8_mixed.safetensors
+  vae: vae/ae.safetensors
+lineage:
+  base: z_image_turbo_bf16
+  quant: int8_convrot
+# 新机器靠这个字段一键还原；远端在 HF 的 split_files/ 下，本地按 ComfyUI 目录约定落位
+source:
+  type: huggingface
+  repo: Comfy-Org/Z-Image-Turbo
+  files:
+    - remote: split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors
+      local: diffusion_models/z_image_turbo_int8_convrot.safetensors
+      min_gb: 5.5
+    - remote: split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors
+      local: text_encoders/qwen_3_4b_fp8_mixed.safetensors
+      min_gb: 5.0
+    - remote: split_files/vae/ae.safetensors
+      local: vae/ae.safetensors
+      min_gb: 0.2
+notes: >-
+  8 步 turbo 蒸馏模型，cfg 固定 1.0，res_multistep/simple。
+  默认用 int8_convrot；本机想换成自己下的 fp8 版，只改 profiles/local.yaml 一行，
+  变体和前端都不用动。1024x1024 实测 16.6s。

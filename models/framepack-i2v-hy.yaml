@@ -1,0 +1,17 @@
+id: framepack-i2v-hy
+name: FramePack I2V HY（HunyuanVideo 底模 + 分节生成）
+family: framepack
+kind: upstream
+# 本机缓存里没有 LICENSE 文件，不替上游下结论；商用前自己核对官方仓库声明
+license: unknown
+commercial_ok: false
+vram_profile: degraded
+# 三个 HF 仓库的目录型缓存，不拆进模型池
+files: {}
+restorable: false
+notes: >-
+  需要三份缓存：lllyasviel/FramePackI2V_HY（transformer 3 分片，约 24 GB）、
+  hunyuanvideo-community/HunyuanVideo（Llama 文本编码器 + CLIP + VAE）、
+  lllyasviel/flux_redux_bfl（SigLIP 图像编码器）。
+  全部在 FramePack 便携包自带的 hf_download/hub 缓存里，位置由 PLATFORM_FRAMEPACK_HF_HOME 指定。
+  12 GB 显存靠 DynamicSwapInstaller 逐层换页 + 分节采样，2 秒片（2 节 × 25 步）是可用档。

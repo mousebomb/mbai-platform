@@ -1,0 +1,8 @@
+# 本机模型绑定（默认：留空，全部走 models/*.yaml 的 files）
+#
+# 这个文件入库，代表「仓库推荐的 canonical 组合」。
+# 想改本机选择，请改 profiles/local.yaml（已被 gitignore），不要改这里。
+#
+# 格式：<model_id>: {<角色>: <相对模型池根目录的路径>}
+# 只写要覆盖的角色，没写的继续用 models/*.yaml 的 files。
+{}
