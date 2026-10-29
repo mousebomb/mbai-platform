@@ -1,0 +1,54 @@
+mbai-platform
+Copyright 2026 mousebomb
+
+本仓库以 Apache License 2.0 发布（全文见 LICENSE）。以下为随仓库分发的
+第三方代码/资源的来源与许可声明；权重（safetensors 等）与本仓库的第三方引擎
+（ComfyUI、CosyVoice、FramePack 等）都不进仓库，由脚本还原，各自遵循上游许可。
+
+--------------------------------------------------------------------------
+1. 派生自 FramePack 的代码
+
+   文件：scripts/engines/framepack_i2v.py
+   上游：FramePack — https://github.com/lllyasviel/FramePack
+         Copyright (c) 2025 lllyasviel
+   许可：Apache License 2.0
+   说明：本文件是上游 demo_gradio.py 的「去 UI」改造版：模型加载、分节采样循环、
+         latent padding 方案、bucket 取尺寸等逻辑来自上游，仅把输出改为 stdout
+         进度、把入口改为 CLI 参数。上游许可与版权声明同样适用于该文件。
+
+   该脚本运行时依赖的上游组件（不自带、由用户自行安装）：
+     - FramePack（Apache-2.0）
+     - lllyasviel/FramePackI2V_HY 权重（上游未声明 LICENSE，本仓库标注 unknown，
+       不用于商业用途前请自行核对）
+     - hunyuanvideo-community/HunyuanVideo（腾讯混元社区许可）
+     - lllyasviel/flux_redux_bfl（SigLIP 图像编码器）
+
+--------------------------------------------------------------------------
+2. 引擎与工具（运行时通过 HTTP 或子进程调用，源码不进本仓库）
+
+   ComfyUI                GPL-3.0        https://github.com/comfyanonymous/ComfyUI
+   CosyVoice / CosyVoice2 Apache-2.0     https://github.com/FunAudioLLM/CosyVoice
+   Real-ESRGAN            BSD-3-Clause   https://github.com/xinntao/Real-ESRGAN
+   Qwen3-TTS              Apache-2.0     https://github.com/QwenLM/Qwen3-TTS
+
+   边界说明：本仓库不包含 ComfyUI 源码，也不与其链接，只通过 HTTP 调用它
+   （提交 API 格式工作流、轮询历史、下载产物）。因此本仓库不是 ComfyUI 的
+   衍生作品，ComfyUI 的 GPL-3.0 不适用于本仓库代码；重新分发 ComfyUI 本身
+   时仍需遵守 GPL-3.0。
+
+--------------------------------------------------------------------------
+3. 模型权重
+
+   本仓库不含任何权重。每个模型的许可、是否可商用、能否一键还原，写在
+   models/*.yaml 的 license / commercial_ok / restorable 字段里。几条已知约束：
+     - MOSS-Image、Z-Image-Turbo、Qwen-Image(-Edit)、CosyVoice、
+       Qwen3-TTS、BiRefNet、Real-ESRGAN：见各自字段（当前均为宽松许可）
+     - FramePackI2V_HY：上游未声明许可证，标注 unknown / 不可商用
+     - 社区 SD1.5 检查点：逐个看原发布页，标注 unknown / 不可商用
+   license: unknown 表示「未核实」，不是「允许使用」。
+
+--------------------------------------------------------------------------
+4. 前端依赖
+
+   React / ReactDOM (MIT)、axios (MIT)、Vite (MIT)、TypeScript (Apache-2.0)，
+   版本与完整依赖树见 apps/web/package-lock.json。
