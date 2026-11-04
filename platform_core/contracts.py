@@ -34,7 +34,8 @@ class Artifact(BaseModel):
 
     id: str = Field(default_factory=lambda: new_id("art"))
     job_id: str
-    kind: Literal["image", "video", "audio"] = "image"
+    # text 用于「结果本身是文本」的能力（ASR 转写、比对报告），落盘为 .txt / .jsonl
+    kind: Literal["image", "video", "audio", "text"] = "image"
     path: str
     width: int | None = None
     height: int | None = None
@@ -78,3 +79,6 @@ class VariantInfo(BaseModel):
     # 引擎适配器 kind：前端据此判断「提交按钮要不要等 ComfyUI 在线」
     engine: str = "comfy"
     inputs: dict[str, Any] = Field(default_factory=dict)
+    # 选用边界（when_to_use / avoid_when / cost），来自 manifest 的 guidance 块。
+    # 下发到 /v1/capabilities，让调用方自己判断该用哪个变体，不另开 /v1/guide。
+    guidance: dict[str, Any] = Field(default_factory=dict)

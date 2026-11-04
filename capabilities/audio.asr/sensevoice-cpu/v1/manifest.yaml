@@ -1,0 +1,48 @@
+capability: audio.asr
+variant: sensevoice-cpu
+version: v1
+title: "语音转写（CPU，不占显存）"
+description: >-
+  把音频转成文本，用来校验 TTS 输出有没有混入 instruct 文案、有没有整段乱码。
+  跑在 CPU 上，完全不碰显存：ComfyUI 的模型留在卡上，后面的出图任务省一次模型重载。
+  结果写进 out/output.jsonl，每行一条 {index, filename, text, ...}；
+  text 是去掉语言/情感/事件标签后的干净文本，比对用这个。
+model_id: sensevoice-small
+engine: cli
+maturity: L1
+
+guidance:
+  when_to_use: >-
+    默认选它。实测 6 条 TTS 产物（1.2~2.4 秒/条）端到端 11.7 秒，其中约 11 秒是固定成本
+    （Python 启动 + import torch 约 7.5 秒，模型加载 3.5 秒），每多一条只多 0.1~0.15 秒。
+    条数对总耗时的影响很小，几百条以内都可以直接用这个。
+  avoid_when: >-
+    单条音频很长（几十秒以上）并且一次要处理几百条时，GPU 才开始有优势。
+    短句批量校验不要换 sensevoice-batch——实测它更慢（见那边的 guidance）。
+  cost: "CPU；0 显存；端到端约 11 秒 + 0.12 秒/条"
+
+cli:
+  command:
+    - '{asr_python}'
+    - '{root}\scripts\engines\asr_transcribe.py'
+    - '--audios'
+    - '{audios}'
+    - '--out'
+    - '{out}'
+    - '--model-dir'
+    - '{asr_model}'
+    - '--device'
+    - 'cpu'
+    - '--language'
+    - '{language}'
+  timeout_sec: 1800
+  output_ext: jsonl
+
+inputs:
+  audios:
+    type: audio
+    multiple: true
+    required: true
+  language:
+    type: string
+    default: auto

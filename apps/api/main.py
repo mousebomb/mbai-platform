@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from platform_core.adapters import get_adapter
@@ -31,6 +31,8 @@ from platform_core.registry import registry
 from platform_core.service import store, worker
 from platform_core.settings import settings
 from platform_core.pool import resolve_options
+from platform_core.guide import render_llms_txt
+from platform_core.voices import find as find_voice
 from platform_core.workflow import resolve_params
 
 # 素材/产物下载用的 MIME：Windows 的 mimetypes 不认识 webp，也猜不准 wav/mp4
@@ -141,6 +143,15 @@ async def get_asset(asset_id: str) -> FileResponse:
     return FileResponse(path, media_type=_ASSET_MEDIA[path.suffix.lower()])
 
 
+@app.get("/v1/voices/{name}/audio")
+async def voice_audio(name: str) -> FileResponse:
+    """音色参考音频试听：路径永远来自音色清单，不接受调用方传任何路径。"""
+    voice = find_voice(name)
+    if voice is None:
+        raise HTTPException(status_code=404, detail=f"音色不存在: {name}")
+    return FileResponse(voice.wav, media_type="audio/wav")
+
+
 @app.get("/v1/capabilities")
 async def capabilities() -> list[dict]:
     # 音色这类动态候选项在请求时现读（用户往目录里丢 wav 后刷新即可见）
@@ -156,6 +167,12 @@ async def capabilities() -> list[dict]:
 async def matrix() -> list[dict]:
     """能力矩阵：目标全集 18 项 × 成熟度等级（= 变体 maturity 最大值），前端「矩阵」tab 用。"""
     return registry.matrix()
+
+
+@app.get("/llms.txt", include_in_schema=False)
+async def llms_txt() -> PlainTextResponse:
+    """能力指南（给 Agent 读）：从注册表现拼，避免静态文档和实际变体脱节。"""
+    return PlainTextResponse(render_llms_txt(), media_type="text/plain; charset=utf-8")
 
 
 @app.post("/v1/jobs", response_model=Job, status_code=202)
@@ -181,10 +198,13 @@ async def create_job(req: JobRequest) -> Job:
     # 素材类参数在入队前校验存在，避免任务排到一半才发现缺图/缺蒙版
     for name, desc in spec.inputs.items():
         if desc.get("type") in {"image", "audio", "mask"} and name in resolved:
-            if asset_path(resolved[name]) is None:
-                raise HTTPException(
-                    status_code=422, detail=f"参数 {name} 引用的素材不存在: {resolved[name]}"
-                )
+            # multiple: true 时是数组，逐个校验
+            ids = resolved[name] if isinstance(resolved[name], list) else [resolved[name]]
+            for asset_id in ids:
+                if asset_path(asset_id) is None:
+                    raise HTTPException(
+                        status_code=422, detail=f"参数 {name} 引用的素材不存在: {asset_id}"
+                    )
 
     return store.add(job)
 

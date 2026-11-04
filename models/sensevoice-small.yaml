@@ -1,0 +1,18 @@
+id: sensevoice-small
+name: SenseVoiceSmall
+family: sensevoice
+kind: upstream
+license: apache-2.0
+commercial_ok: true
+vram_profile: light
+# 目录级权重：model.pt / config.yaml / configuration.json / tokens.json / am.mvn，
+# 不是单文件结构，所以 files 留空（和 cosyvoice2-0.5b 一个处理方式），
+# doctor 不逐个校验，由任务启动时报错兜底。
+files: {}
+restorable: true
+notes: >-
+  目录级权重。还原方式：uvx --from huggingface_hub hf download FunAudioLLM/SenseVoiceSmall
+  或 modelscope 的 iic/SenseVoiceSmall，落到 PLATFORM_MODELS_DIR/asr/SenseVoiceSmall，
+  再用 .env 的 PLATFORM_ASR_MODEL 指过去。
+  两个 ASR 变体（CPU / CUDA）共用这一份权重，只有解释器不同。
+  模型约 900 MB，234M 参数，非自回归，中文短句速度快且不像 Whisper 那样在静音段幻觉。

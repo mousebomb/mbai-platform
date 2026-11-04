@@ -1,0 +1,51 @@
+capability: audio.asr
+variant: sensevoice-batch
+version: v1
+title: "语音转写（GPU 批量）"
+description: >-
+  和 sensevoice-cpu 同一个模型、同一个脚本，只换解释器与设备（cuda:0）。
+  为批量设计：一次进程加载模型、跑完整个数组，加载成本被条数摊薄。
+  跑之前会先让 ComfyUI 卸载模型腾显存（free_comfy_vram），
+  所以它独占 GPU，且任务结束后下一张图要重新加载模型。
+  结果同样写 out/output.jsonl。
+model_id: sensevoice-small
+engine: cli
+maturity: L1
+
+guidance:
+  when_to_use: >-
+    只在「单条音频很长」或「一次几百条」时才考虑。实测 1~2 秒的短音频上它反而更慢：
+    3 条端到端 GPU 12.0 秒、CPU 10.9 秒。原因是 import torch(cu128) 加 CUDA 上下文
+    初始化约 10 秒，完全盖过单条推理省下的那 0.03 秒。
+  avoid_when: >-
+    短句批量校验——这是最常见的用法，请用 sensevoice-cpu。
+    跑完还要接着出图时更不要用它：free_comfy_vram 会让下一张图多付 10~15 秒模型重载。
+  cost: "GPU；跑前卸载 ComfyUI 模型；固定开销约 12 秒，单条推理约是 CPU 的 2 倍速"
+
+cli:
+  command:
+    - '{asr_cuda_python}'
+    - '{root}\scripts\engines\asr_transcribe.py'
+    - '--audios'
+    - '{audios}'
+    - '--out'
+    - '{out}'
+    - '--model-dir'
+    - '{asr_model}'
+    - '--device'
+    - 'cuda:0'
+    - '--language'
+    - '{language}'
+  timeout_sec: 3600
+  output_ext: jsonl
+  # 12GB 卡上 ASR 的 CUDA 上下文和 ComfyUI 的模型放不下，先让 ComfyUI 卸载
+  free_comfy_vram: true
+
+inputs:
+  audios:
+    type: audio
+    multiple: true
+    required: true
+  language:
+    type: string
+    default: auto

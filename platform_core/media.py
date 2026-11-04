@@ -22,6 +22,9 @@ KIND_BY_SUFFIX = {
     ".mp4": "video",
     ".webm": "video",
     ".mov": "video",
+    # 文本产物：ASR 用 .jsonl（每行一条转写），其它纯文本能力用 .txt
+    ".txt": "text",
+    ".jsonl": "text",
 }
 
 

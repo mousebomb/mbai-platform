@@ -69,6 +69,14 @@ class Settings(BaseSettings):
     framepack_home: Path | None = None
     # HF_HOME：模型缓存在它下面的 hub/ 里
     framepack_hf_home: Path | None = None
+    # ---- ASR（SenseVoice）：两个独立 venv，不是 conda ----
+    # funasr 在 Windows 全是 pip wheel，没有 CosyVoice 那种 conda-only 依赖。
+    # CPU 版价值在「不碰显存」：ComfyUI 模型留在卡上，后续出图省一次重载
+    asr_python: Path | None = None
+    # 批量版走 CUDA；manifest 里用 free_comfy_vram 先卸载 ComfyUI 模型
+    asr_cuda_python: Path | None = None
+    # 权重只有一份，两个环境共用
+    asr_model: Path | None = None
 
     @property
     def artifacts_dir(self) -> Path:

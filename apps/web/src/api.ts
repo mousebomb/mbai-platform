@@ -5,7 +5,7 @@ export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelle
 export interface Artifact {
   id: string;
   job_id: string;
-  kind: "image" | "video" | "audio";
+  kind: "image" | "video" | "audio" | "text";
   path: string;
   width: number | null;
   height: number | null;

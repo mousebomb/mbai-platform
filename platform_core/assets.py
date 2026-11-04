@@ -34,6 +34,9 @@ MEDIA_TYPES = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
     ".mov": "video/quicktime",
+    # 文本产物（ASR 转写等）：带 charset 才能让浏览器直接显示中文，否则乱码
+    ".txt": "text/plain; charset=utf-8",
+    ".jsonl": "application/x-ndjson; charset=utf-8",
 }
 # 上传大小上限（20 MB）
 MAX_ASSET_BYTES = 20 * 1024 * 1024

@@ -539,7 +539,20 @@ function Field({
           {name}
           {spec.required && <em> *</em>}
         </span>
-        <select value={value} onChange={(e) => onChange(name, e.target.value)}>
+        <select
+          value={value}
+          onChange={(e) => {
+            onChange(name, e.target.value);
+            // 选音色就试听一次参考音频；change 事件来自用户操作，一般不算自动播放拦截
+            if (spec.type === "voice" && e.target.value) {
+              new Audio(`/v1/voices/${encodeURIComponent(e.target.value)}/audio`)
+                .play()
+                .catch(() => {
+                  /* 浏览器拦了就算了，不影响选择 */
+                });
+            }
+          }}
+        >
           {spec.options.map((opt) => (
             <option key={opt || "__none"} value={opt}>
               {/* 空值是「不使用」这类显式空选项（LoRA 可以用它跳过节点） */}
@@ -592,7 +605,7 @@ function Field({
   );
 }
 
-/** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 */
+/** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 / 文本链接 */
 function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?: string }) {
   const url = artifactUrl(artifact);
   if (artifact.kind === "audio")
@@ -600,12 +613,20 @@ function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?
     return <audio className={className} controls preload="metadata" src={url} />;
   if (artifact.kind === "video")
     return <video className={className} controls playsInline src={url} />;
+  if (artifact.kind === "text")
+    // 文本产物（ASR 转写等）不在卡片里铺长文本，新窗口打开看
+    return (
+      <a className={`${className ?? ""} text-artifact`} href={url} target="_blank" rel="noreferrer">
+        {fileName(artifact.path)}
+      </a>
+    );
   return <img className={className} src={url} alt={fileName(artifact.path)} loading="lazy" />;
 }
 
-/** 产物规格：图片是宽高，音视频是时长 */
+/** 产物规格：图片是宽高，音视频是时长，文本没有规格 */
 function artifactSpec(a: Artifact): string {
   if (a.kind === "image") return a.width && a.height ? `${a.width}×${a.height}` : "";
+  if (a.kind === "text") return "文本";
   return a.duration ? `${a.duration.toFixed(1)}s` : "";
 }
 

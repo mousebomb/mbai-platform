@@ -60,6 +60,7 @@ platform_core/         控制平面
   worker.py            队列循环、轮询、产物收集、取消
   service.py           单例 store + worker
   settings.py          全部路径走 PLATFORM_ 环境变量
+  guide.py             /llms.txt 的内容（从注册表现拼，不是静态文件）
 capabilities/<能力>/<变体>/<版本>/{manifest.yaml,workflow.json}
 models/<id>.yaml       模型元数据（files/license/vram_profile），不含权重
 docs/images/           README 里的界面截图（敏感文字已打码）
@@ -386,6 +387,50 @@ FramePack 是个 Gradio 应用，但它把推理都放在 `diffusers_helper/` �
    和音色库里的真人素材无关。带真人来源的只有 `blend`（2.0 声纹插值）那几个音色——
    被问到「这声音是不是用我录的素材做的」时，答案是「不是」。
 
+## 4.4 ASR（语音转写，主要用来校验 TTS 产物）
+
+两个变体、同一个模型、同一个脚本，只换解释器和 `--device`：`sensevoice-cpu` / `sensevoice-batch`。
+
+**用 uv，不用 conda。** CosyVoice 要 conda 是因为 pynini 在 Windows 没有 pip wheel；
+funasr 整条依赖全是 pip wheel，没有 conda-only 的东西。两个独立 venv 共用一份 936 MB 权重：
+
+| 环境 | torch | 变体 |
+|---|---|---|
+| `D:\AI\envs\asr-cpu` | CPU 版 | `sensevoice-cpu` |
+| `D:\AI\envs\asr-cuda` | cu128 | `sensevoice-batch` |
+| `D:\AI\models\asr\SenseVoiceSmall` | — | 两个共用 |
+| `.env` | `PLATFORM_ASR_PYTHON` / `_CUDA_PYTHON` / `_MODEL` | — |
+
+**为什么不合成一个 venv**：装 CUDA 版 torch 再让 CPU 变体「只是不传 `--device cuda`」也能跑，
+但 CPU 版就背上了加载 CUDA 库的成本，而它存在的理由恰恰是「轻、快、不碰显存」。
+多 200 MB 磁盘换隔离，值。
+
+### 实测数据（RTX 3060，1.2~2.4 秒的 TTS 短句）
+
+| 变体 | 3 条端到端 | 固定开销 | 每条增量 |
+|---|---|---|---|
+| cpu | **10.9 s** | 约 11 s（Python 启动 + import 7.5 s、模型加载 3.5 s） | 0.1~0.15 s |
+| batch | 12.0 s | 约 12 s（含 CUDA 上下文初始化） | 0.03~0.09 s |
+
+**GPU 在短音频上没有优势，反而慢约 1 秒。** 模型只有 234M，单条推理 CPU 0.1 s、GPU 0.05 s，
+省下的时间被 CUDA 固定开销完全吃掉。加上 `free_comfy_vram` 会让下一张图多付 10~15 秒重载，
+短句批量校验用 GPU 是净亏。**设计初期按直觉写的「20 条以上用 GPU」是错的，别照抄。**
+
+### 三个必须记住的点
+
+1. **`trust_remote_code=False`**。funasr 1.4 已内置 SenseVoice；开着 True 每次都打
+   `Loading remote code failed: model, No module named 'model'`，能降级跑但全是噪音。
+2. **不要用 `rich_transcription_postprocess`**。它把情感标签转成 emoji 插进正文
+   （`根本停不下来。😡`），对逐字比对是噪音。脚本只用正则去 `<|...|>` 标签，
+   情感/语言信息留在 `raw` 字段。
+3. **TTS 产物不是 asset**。`audios` 参数要 asset_id，所以校验一条 TTS 结果得先把 wav
+   `POST /v1/assets` 一次。刻意如此：平台只认 asset id，不认任意路径。
+
+### 能力边界
+
+抓大错不抓小错：整段乱码、instruct 泄露、串话能抓到；只错一个字时 ASR 的语言模型很可能
+直接「纠正」成正确那句，比不出来。不要当逐字校对用。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -402,6 +447,13 @@ FramePack 是个 Gradio 应用，但它把推理都放在 `diffusers_helper/` �
 | GET | `/v1/jobs/{id}/file/{filename}` | 取产物，只允许任务目录下的直接子文件 |
 | POST | `/v1/assets` | 上传输入图（multipart 字段 `file`，png/jpg/jpeg/webp ≤ 20 MB），返回 asset_id + 宽高 |
 | GET | `/v1/assets/{asset_id}` | 取回素材（前端预览用） |
+| GET | `/v1/voices/{name}/audio` | 音色参考音频试听；路径只来自音色清单，不接受任意路径 |
+| GET | `/llms.txt` | 能力指南（`text/plain`），**每次请求从注册表现拼**，不是静态文件 |
+
+`/llms.txt` 为什么动态生成：变体数量会变，静态文件必然和注册表漂移。
+漂移的文档比没有文档更糟——Agent 会照它提交一个已经不存在的变体，拿到 422 再重试。
+它只写「怎么调」和「什么时候选哪个」；结构化参数以 `/v1/capabilities` 为准。
+选用边界放在各变体 manifest 的 `guidance` 块，两个出口读的是同一份数据。
 
 另外 `/` 挂的是前端构建产物（`apps/web/dist`），所以网页和 API 同源同端口，没有 CORS 问题。
 
@@ -458,9 +510,19 @@ constants:
 
 `inputs.type` 支持 `string` / `int` / `float` / `prompt` / `text` / `image` / `audio` / `voice` / `mask` /
 `checkpoint` / `lora`，
-可选 `required`、`default`、`min`、`max`、`multiple_of`、`options_from`。校验在 `workflow._check_input`，
-**未知参数直接拒绝**（防前端塞字段改工作流）。`image` / `audio` / `mask` 的值是 `asset_id`，
-worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
+可选 `required`、`default`、`min`、`max`、`multiple_of`、`options_from`、`multiple`。
+校验在 `workflow._check_input`，**未知参数直接拒绝**（防前端塞字段改工作流）。
+`image` / `audio` / `mask` 的值是 `asset_id`，worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
+
+`multiple: true` 让素材类参数接受 **asset_id 数组**（批量 ASR 一次传多条）。两处配套逻辑：
+worker 逐个解析成路径数组；`cli.command` 里**只有整个参数恰好是一个 `{参数名}` 占位符时**才展开成
+多个 argv 项（带前后缀的模板按字符串渲染，避免路径列表被拼成 `"[...]"`）。
+不加 `multiple` 的变体行为完全不变。
+
+`guidance` 块（可选）声明选用边界：`when_to_use` / `avoid_when` / `cost`，都是自由文本。
+它随 `GET /v1/capabilities` 下发，同时汇总进 `GET /llms.txt`。
+**边界一定要写实测数字**——ASR 那两个变体原本按直觉写了「20 条以上用 GPU」，
+实测后发现短音频上 GPU 一直更慢，阈值完全站不住。
 
 `voice` 类型的值是音色名，必须能在这个机器的音色清单里找到（拼错直接拒绝，不白跑 40 秒）。
 CLI 适配器会把它展开成两个占位符：`{voice:wav}`（参考音频绝对路径）和 `{voice:prompt}`（参考文本），
@@ -477,7 +539,13 @@ CLI 适配器会把它展开成两个占位符：`{voice:wav}`（参考音频绝
 它和 `image` 走完全相同的素材链路，后端只多认一个类型名。
 
 `cli.output_ext` 决定产物扩展名，产物 `kind` 由扩展名反推（`media.KIND_BY_SUFFIX`）：
-png/webp → image，wav/mp3/flac/ogg/m4a → audio，mp4/webm/mov → video。音视频时长从文件头读，不信参数。
+png/webp → image，wav/mp3/flac/ogg/m4a → audio，mp4/webm/mov → video，txt/jsonl → text。
+音视频时长从文件头读，不信参数；text 没有时长，`duration` 是 null。
+
+**文本产物是扩展出来的第四种 kind**（原注释写的是「只在出现全新产物类型时才扩展」）。
+没有它，ASR 这类「结果就是文本」的能力跑完会被 `cli.collect` 判失败——
+收集器只认 `KIND_BY_SUFFIX` 里的媒体扩展名，txt 会被跳过，然后 `raise AdapterError`。
+前端 `ArtifactMedia` 也要有 text 分支，默认分支是 `<img>`，txt 会显示成破图。
 
 ### 5.4 workflow.json
 
@@ -605,6 +673,13 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
      `$keys` 里已加），漏了的话节点候选是空的，看起来像「模型没下下来」
   2. `JoinImageWithAlpha` 内部是 `alpha = 1.0 - mask`，即**它要的是「变透明的区域」**，
      所以要接一个 `InvertMask`，直接把 `RemoveBackground` 的 mask 连上去会抠出背景、留下前景的洞
+
+- **ASR 的 GPU 版在短音频上不划算**：见 §4.4 的实测数据，默认用 `sensevoice-cpu`；
+  `sensevoice-batch` 只在单条音频很长、或一次几百条时才考虑
+- **ASR 依赖两个独立 venv**，解释器路径只能写 `.env`（`PLATFORM_ASR_PYTHON` /
+  `PLATFORM_ASR_CUDA_PYTHON`）；没配时任务在启动进程前报「占位符没有对应值」，不会静默传空串
+- **ASR 输入必须是 asset_id**：TTS 产物是 job artifact，不是 asset，所以校验前要
+  `POST /v1/assets` 上传一次（多一次复制，几十 KB~MB 级）
 
 ## 9.1 垃圾回收（TTL）
 

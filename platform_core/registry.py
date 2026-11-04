@@ -117,6 +117,10 @@ class VariantSpec(BaseModel):
     # 不用改 manifest；没写则退回 constants 里写死的文件名（兼容旧变体）
     model_bind: dict[str, str] = Field(default_factory=dict)
     inputs: dict[str, Any] = Field(default_factory=dict)
+    # 选用边界：什么时候该用这个变体、什么时候该换别的。
+    # 不做成 /v1/guide 那样的独立接口——调用方读 /v1/capabilities 就能拿到。
+    # 约定字段（都是自由文本，缺省就少一个键）：when_to_use / avoid_when / cost
+    guidance: dict[str, Any] = Field(default_factory=dict)
     # "节点ID.inputs.字段" → 参数名，工作流里只换值，不动结构
     bindings: dict[str, str] = Field(default_factory=dict)
     # 固定注入的值（比如模型文件名），不对外暴露
@@ -149,6 +153,7 @@ class VariantSpec(BaseModel):
             description=self.description,
             engine=self.engine,
             inputs=self.inputs,
+            guidance=self.guidance,
         )
 
 

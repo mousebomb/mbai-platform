@@ -50,7 +50,14 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
     elif kind in {"image", "audio", "mask"}:
         # 值就是 asset_id 字符串；文件存在性在入队时（API）校验
         # mask 也是 PNG 素材，白色 = 要重绘的区域（前端蒙版画布导出）
-        if not isinstance(value, str) or not value:
+        # multiple: true 时值是 asset_id 数组（批量 ASR 之类），单个元素规则同上
+        if spec.get("multiple"):
+            if not isinstance(value, list) or not value:
+                raise ValueError(f"参数 {name} 需要素材 ID 数组（非空），收到 {value!r}")
+            for v in value:
+                if not isinstance(v, str) or not v:
+                    raise ValueError(f"参数 {name} 的数组里有非法元素: {v!r}")
+        elif not isinstance(value, str) or not value:
             raise ValueError(f"参数 {name} 需要素材 ID（字符串），收到 {value!r}")
     elif kind == "voice":
         # 音色名必须在音色目录里真实存在，避免拼错后白跑一次 40 秒的合成

@@ -272,6 +272,8 @@ wait_job("job_yyy")  → succeeded + <仓库>\data\artifacts\job_yyy\matting_000
 | `audio.tts` | `cosyvoice2-instruct` | CosyVoice2-0.5B（音色 + 自然语言指令定情绪/语速） | CLI（独立 conda 环境） |
 | `audio.voice_clone` | `cosyvoice2-clone` | CosyVoice2-0.5B（上传参考音频克隆） | CLI（独立 conda 环境） |
 | `audio.voice_design` | `blend` | CosyVoice2-0.5B（两段嗓音插值成一个新音色） | CLI（独立 conda 环境） |
+| `audio.asr` | `sensevoice-cpu` | SenseVoiceSmall（CPU，不占显存，默认选它） | CLI（独立 uv venv） |
+| `audio.asr` | `sensevoice-batch` | SenseVoiceSmall（GPU，跑前卸载 ComfyUI 模型） | CLI（独立 uv venv） |
 | `video.img2video` | `framepack-i2v` | FramePack I2V HY（首帧驱动，分节生成） | CLI（独立便携环境） |
 
 ### 换模型版本不用改代码
@@ -377,6 +379,88 @@ uv run python -c "from platform_core.voices import list_voices; [print(v.name, v
 | 下拉是空的 | `cosyvoice_home` 指错了，连兜底的 `asset/zero_shot_prompt.wav` 都找不到 |
 | 提示「音色不存在」 | 入队前校验拦下的，按提示里的可选列表改名 |
 
+## 语音转写（ASR）
+
+用来**校验 TTS 的产物**：把合成好的音频转回文本，和原始台词比对，抓「instruct 被念进正文」
+「整段乱码」「串话」这类问题。也能当普通转写用。
+
+### 怎么调
+
+```powershell
+# 1. 上传音频，拿到 asset id
+curl.exe -F "file=@D:/path/to/output.wav" http://127.0.0.1:8000/v1/assets
+
+# 2. 提交（audios 是数组，一次可以传多条）
+curl.exe -X POST http://127.0.0.1:8000/v1/jobs -H "Content-Type: application/json" -d "{\"capability\":\"audio.asr\",\"variant\":\"sensevoice-cpu\",\"params\":{\"audios\":[\"ast_xxx\"]}}"
+
+# 3. 产物是 output.jsonl，直接看
+curl.exe http://127.0.0.1:8000/v1/jobs/<job_id>/file/output.jsonl
+```
+
+**注意 TTS 产物不是 asset。** 要把某条 TTS 结果拿去做 ASR，得先 `POST /v1/assets` 上传一次
+（走 `GET /v1/jobs/{id}/file/output.wav` 拿到文件，或直接用磁盘路径）。这是刻意的：
+平台只认 asset id，不认任意路径。
+
+### 输出格式
+
+`output.jsonl`，每行一条：
+
+```json
+{"index":0,"filename":"ast_b6b6.wav","text":"根本停不下来。","raw":"<|zh|><|ANGRY|><|Speech|><|withitn|>根本停不下来。","duration_s":1.41,"elapsed_s":0.078,"rtf":0.078}
+```
+
+- `text` 是去掉 `<|zh|><|ANGRY|>` 这类标签后的干净文本，**比对用这个**
+- `raw` 保留原始标签，需要语言/情感/事件信息时看它
+- 单条失败只影响那一行（带 `error`），不拖垮整批
+
+**不要把 emoji 当正文**：`rich_transcription_postprocess` 会把情感标签转成 emoji 塞进文本，
+对逐字比对是噪音，所以脚本刻意没用它，只用正则去标签。
+
+### CPU 还是 GPU：实测数据，不是直觉
+
+| | 端到端（3 条短音频） | 固定开销 | 每条增量 |
+|---|---|---|---|
+| `sensevoice-cpu` | **10.9 s** | 约 11 s（Python 启动 + import 7.5 s、加载 3.5 s） | 0.1~0.15 s |
+| `sensevoice-batch` | 12.0 s | 约 12 s（含 CUDA 上下文初始化） | 0.03~0.09 s |
+
+**短音频上 GPU 反而更慢。** 模型只有 234M，1~2 秒的句子单条推理本来就只要 0.1 秒，
+省下的那点时间完全被 CUDA 初始化的固定开销吃掉。而且 `sensevoice-batch` 带
+`free_comfy_vram: true`，跑之前会把 ComfyUI 的模型踢掉，下一张图要多付 10~15 秒重载。
+
+所以：**默认用 `sensevoice-cpu`**。GPU 版只在「单条音频很长」或「一次几百条」时才有意义。
+这条边界写在两个变体的 `guidance` 块里，`GET /v1/capabilities` 会原样下发，
+Agent 自己就能判断该选哪个。
+
+### 新机器怎么还原
+
+```powershell
+# 1. 环境（uv，不是 conda；funasr 在 Windows 全是 pip wheel）
+uv venv D:\AI\envs\asr-cpu --python 3.12
+uv pip install --python D:\AI\envs\asr-cpu\Scripts\python.exe funasr torch torchaudio
+
+# GPU 版（可选）：torch 走 pytorch 官方 index，注意和 CPU 版是不同的 venv
+uv venv D:\AI\envs\asr-cuda --python 3.12
+uv pip install --python D:\AI\envs\asr-cuda\Scripts\python.exe torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python D:\AI\envs\asr-cuda\Scripts\python.exe funasr
+
+# 2. 权重（约 936 MB）；hf-mirror 限流时改用 modelscope
+D:\AI\envs\asr-cpu\Scripts\python.exe -c "from modelscope import snapshot_download; snapshot_download('iic/SenseVoiceSmall', local_dir=r'D:\AI\models\asr\SenseVoiceSmall')"
+
+# 3. 写 .env
+# PLATFORM_ASR_PYTHON=D:/AI/envs/asr-cpu/Scripts/python.exe
+# PLATFORM_ASR_CUDA_PYTHON=D:/AI/envs/asr-cuda/Scripts/python.exe
+# PLATFORM_ASR_MODEL=D:/AI/models/asr/SenseVoiceSmall
+```
+
+两个 venv 共用同一份权重，只有解释器不同。
+
+### 能力边界（别指望它做逐字校对）
+
+- **抓大错，不抓小错**：整段乱码、instruct 泄露、串话能抓到；只错一个字时
+  ASR 的语言模型很可能直接"纠正"成正确的那句，比对不出来。
+- **中文准、英文准，方言看模型**：`language` 可以指定 `zh/en/ja/ko/yue`，默认 `auto`。
+- **它不判断音色、不判断情绪好不好**：情感标签只在 `raw` 里，仅供参考。
+
 ## 双音色插值（音色设计）
 
 `audio.voice_design/blend`：取两段参考音频的声纹向量做球面插值，合成一个**原本不存在**的音色，
@@ -438,6 +522,13 @@ uv run mbai run --capability image.inpaint --variant z-image-turbo-inpaint `
 - 参数只走 `manifest.yaml` 的 `inputs`/`bindings`，代码不认识具体模型
 - 权重只放 `PLATFORM_MODELS_DIR`（热池），历史权重用 `engines/comfy/extra_model_paths.yaml` 引用，不复制
 - 每个产物都记录 `model_id`，方便溯源和 A/B
+- **结果本身是文本时**（转写、比对报告、评分），写成 `.txt`/`.jsonl` 当产物收，
+  不要塞进 `job.error` 或日志——`KIND_BY_SUFFIX` 认这两个扩展名，`Artifact.kind` 是 `text`
+- **一次要多个同类输入**时，manifest 里写 `multiple: true`，参数值是 asset id 数组，
+  `cli.command` 里用独立的 `{参数名}` 占位符（整个参数就是一个占位符才会展开成多项）
+- **不同变体的选用边界**写在 `guidance` 块（`when_to_use` / `avoid_when` / `cost`），
+  会随 `GET /v1/capabilities` 下发，也汇总进 `GET /llms.txt`。边界要用实测数字，
+  不要凭直觉写阈值
 
 ## 脚本索引
 
@@ -449,6 +540,7 @@ uv run mbai run --capability image.inpaint --variant z-image-turbo-inpaint `
 | `scripts\download-tools.ps1` | 下载并解压 Real-ESRGAN ncnn-vulkan 工具包（幂等） | 换机器 / 用超分 |
 | `scripts\bootstrap-cosyvoice.ps1` | 还原音频引擎：clone CosyVoice 固定 commit、建 conda 环境、装依赖、下 4.8 GB 模型、写 `.env`（幂等） | 换机器 / 想用 TTS |
 | `scripts\start-engine.ps1` | 启动引擎（8188） | 每次开机 |
+| `scripts\engines\asr_transcribe.py` | SenseVoice 转写，输出 `output.jsonl`（CLI 适配器调用，也可手动跑） | 校验 TTS 产物 |
 | `scripts\smoke-test.py` | HTTP + 队列端到端冒烟 | 改完控制平面 |
 | `scripts\test-layout.py` | Layout JSON 版式落位验证 | 改 prompt 注入 |
 | `scripts\check-nodes.py` | 检查引擎里 MOSS 节点是否在 | 引擎异常 |

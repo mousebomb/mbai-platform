@@ -25,6 +25,8 @@ from ..voices import find
 from .base import Adapter, AdapterError, EngineState, EngineStatus
 
 _PLACEHOLDER = re.compile(r"\{([\w:]+)\}")
+# 整个参数恰好是一个占位符（没有前后缀）时才允许列表展开
+_FULL_PLACEHOLDER = re.compile(r"^\{([\w:]+)\}$")
 # 产物扩展名 → Artifact.kind；不认识的扩展名直接跳过，不当产物收
 _MEDIA_KINDS = KIND_BY_SUFFIX
 # 日志里的百分比进度（realesrgan 按 tile 打 "xx.xx%"）；取最后一个匹配
@@ -46,6 +48,20 @@ def _render(template: str, values: dict[str, Any]) -> str:
         return str(values[name])
 
     return _PLACEHOLDER.sub(repl, template)
+
+
+def _expand_arg(template: str, values: dict[str, Any]) -> list[str]:
+    """把一个 command 参数渲染成 argv 片段。
+
+    只有当整个参数恰好是 `{name}` 且值为列表时才展开成多项（批量输入）；
+    带前后缀的模板一律按字符串渲染，避免路径列表被拼成 "[...]" 这种垃圾。
+    """
+    m = _FULL_PLACEHOLDER.match(template)
+    if m:
+        value = values.get(m.group(1))
+        if isinstance(value, (list, tuple)):
+            return [str(x) for x in value]
+    return [_render(template, values)]
 
 
 class CliAdapter(Adapter):
@@ -95,7 +111,9 @@ class CliAdapter(Adapter):
                     raise AdapterError(f"音色 {params[name]!r} 不存在")
                 values[f"{name}:wav"] = str(voice.wav)
                 values[f"{name}:prompt"] = voice.prompt_text
-        argv = [_render(str(arg), values) for arg in command]
+        argv: list[str] = []
+        for arg in command:
+            argv.extend(_expand_arg(str(arg), values))
 
         # 单卡机器：声明了 free_comfy_vram 的大显存任务，开跑前先让 ComfyUI 卸载模型
         if cli.get("free_comfy_vram"):
@@ -204,7 +222,9 @@ class CliAdapter(Adapter):
                     )
                 )
         if not artifacts:
-            raise AdapterError("CLI 执行完成但 out_dir 下没有可识别的产物（png/wav/mp4…）")
+            raise AdapterError(
+                "CLI 执行完成但 out_dir 下没有可识别的产物（png/wav/mp4/txt/jsonl…）"
+            )
         return artifacts
 
     def _kill_tree(self, proc: subprocess.Popen) -> None:
