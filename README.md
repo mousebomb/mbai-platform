@@ -1,8 +1,26 @@
+<p align="center">
+  <img src="apps/web/public/apple-touch-icon.png" width="120" alt="mbai-platform">
+</p>
+
 # mbai-platform
 
-本机（RTX 3060 12GB / Windows）的**一站式 AI 能力平台**：统一模型池 + 统一队列 + 网页/Agent 双入口。
+![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.12+-3776AB?style=flat-square)
+![FastAPI](https://img.shields.io/badge/FastAPI-control%20plane-009688?style=flat-square)
+![React](https://img.shields.io/badge/React%2019-web%20UI-61DAFB?style=flat-square)
+![ComfyUI](https://img.shields.io/badge/ComfyUI-model%20runtime-2b2b2b?style=flat-square)
+![MCP](https://img.shields.io/badge/MCP-stdio-6E56CF?style=flat-square)
 
-设计原则：**不自研推理内核**。ComfyUI 当模型运行时，平台只做控制平面（能力注册表、队列、产物、适配器）。
+**一站式本地 AI 能力平台**：生图 / 改图 / 抠图 / 超分 / 图生视频 / 语音合成 / 音色克隆 / 音色设计 / 语音转写，
+统一 REST 接口交给本地智能体调用。单卡 RTX 3060 12GB / Windows 上实测跑通。
+
+- **图片** —— 文生图（多模型切换）、指令改图、图生图、蒙版重绘、抠图、超分
+- **视频** —— 首帧驱动图生视频（FramePack 分节生成）
+- **音频** —— 语音合成（自然语言情绪指令）、音色克隆、音色设计/插值、语音转写
+
+完整清单（每个变体的模型、引擎与选用边界）见 [能力清单](#能力清单当前)。
+
+设计原则：**不自研推理内核**。ComfyUI 当模型运行时，平台只做控制平面（能力注册表、统一队列、产物库、引擎适配器）。
 
 > 给 Agent / 新接手的人：先读 **[AGENTS.md](AGENTS.md)**，架构约束、契约、踩过的坑都在那里。
 
