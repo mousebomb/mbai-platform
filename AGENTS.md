@@ -431,6 +431,47 @@ funasr 整条依赖全是 pip wheel，没有 conda-only 的东西。两个独立
 抓大错不抓小错：整段乱码、instruct 泄露、串话能抓到；只错一个字时 ASR 的语言模型很可能
 直接「纠正」成正确那句，比不出来。不要当逐字校对用。
 
+## 4.5 抠图：`rembg-anime` 与 `birefnet` 并存
+
+两个变体解决两类不同缺陷，**不是新旧替代关系**：
+
+| 变体 | 实现 | 模型 | 定位 |
+|---|---|---|---|
+| `image.matting/birefnet` | ComfyUI 核心节点 | BiRefNet 1024 | 通用兜底 |
+| `image.matting/rembg-anime` | `scripts/engines/rembg_matting.py` | ISNet Anime | **仅动漫人物** |
+
+### 抠不干净的两类成因（别混为一谈）
+
+1. **白边（fringe）**：`JoinImageWithAlpha` 只写 alpha、RGB 原样保留，
+   边缘像素带着白背景的混合色。这是 straight alpha 的合成数学，换什么模型都存在，
+   只能靠 decontaminate 反解前景色。
+2. **白块（孔洞漏抠）**：脸颊两侧、头发与脖子之间的白色空隙被模型判成前景，
+   `alpha = 1.0`。**反混合对它完全无效**，只能换模型/提分辨率。
+
+实测 10 张人物立绘：`rembg-anime` 边缘亮度中位 145.7 → 28.8，孔洞消失，误删 0/10。
+
+### 边界（踩过的坑）
+
+`isnet-anime` **只认动漫人物**。批量测试时用 15 张混样（含草地、花拱门、森林小屋），
+它在这些图上把**主体整块删掉**，输出几乎全透明。当时的「alpha 差异 = 孔洞修复面积」
+指标把它误判成了 28% 的修复率——**指标分不清「修掉背景」和「删掉主体」**。
+所以：不要做成自动选模型，必须由调用方显式指定。
+
+`isnet-anime` 标 `commercial_ok: false`，上游授权未确认。
+
+### 环境与耗时
+
+```
+D:\AI\envs\matting            rembg + onnxruntime + pymatting（独立 uv venv）
+D:\AI\models\matting          isnet-anime.onnx（168 MB，U2NET_HOME）
+.env                          PLATFORM_MATTING_PYTHON / _MODEL_DIR
+```
+
+CLI 一次性进程：首次约 **32 秒**（import onnxruntime + 加载模型），
+缓存热了之后约 **2.7 秒/张**。`timeout_sec: 600`。
+
+反混合下限用 `alpha > 0.08`：再低分母趋零，发丝尖端会被放大成彩色噪点。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -680,6 +721,10 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
   `PLATFORM_ASR_CUDA_PYTHON`）；没配时任务在启动进程前报「占位符没有对应值」，不会静默传空串
 - **ASR 输入必须是 asset_id**：TTS 产物是 job artifact，不是 asset，所以校验前要
   `POST /v1/assets` 上传一次（多一次复制，几十 KB~MB 级）
+- **抠图选错变体会灾难性失败**：`rembg-anime` 只认动漫人物，草地/建筑/静物会被整块删掉；
+  不确定图类型时用 `birefnet`。不要做成自动选模型
+- **`rembg-anime` 首次调用约 32 秒**（import onnxruntime + 加载 168 MB 模型），
+  缓存热了之后约 2.7 秒/张；别拿首跑耗时当单张成本
 
 ## 9.1 垃圾回收（TTL）
 

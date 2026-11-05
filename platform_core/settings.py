@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     asr_cuda_python: Path | None = None
     # 权重只有一份，两个环境共用
     asr_model: Path | None = None
+    # ---- 抠图（rembg）：独立 venv，CPU 推理，不占显存 ----
+    # 现有 image.matting/birefnet 走 ComfyUI 核心节点，这条是备选链路
+    matting_python: Path | None = None
+    # rembg 用 U2NET_HOME 找 onnx 权重，脚本里会读这个值设环境变量
+    matting_model_dir: Path | None = None
 
     @property
     def artifacts_dir(self) -> Path:

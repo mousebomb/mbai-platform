@@ -266,6 +266,7 @@ wait_job("job_yyy")  → succeeded + <仓库>\data\artifacts\job_yyy\matting_000
 | `image.img2img` | `z-image-turbo-i2i` | Z-Image Turbo 6B int8（denoise 控保留度） | ComfyUI |
 | `image.inpaint` | `z-image-turbo-inpaint` | Z-Image Turbo 6B int8（蒙版重绘） | ComfyUI |
 | `image.matting` | `birefnet` | BiRefNet（输出透明 PNG） | ComfyUI |
+| `image.matting` | `rembg-anime` | ISNet Anime（**仅动漫人物**，孔洞/白边明显更干净） | CLI（独立 uv venv） |
 | `image.upscale` | `realesrgan-anime` | realesr-animevideov3 | CLI（ncnn-vulkan） |
 | `image.upscale` | `realesrgan-x4plus` | realesrgan-x4plus | CLI（ncnn-vulkan） |
 | `audio.tts` | `cosyvoice2` | CosyVoice2-0.5B（零样本，音色从本机清单里选） | CLI（独立 conda 环境） |
@@ -509,6 +510,42 @@ ComfyUI 的 `VAEEncodeForInpaint` 会把蒙版外的 latent 锁住，Z-Image Tur
 uv run mbai run --capability image.inpaint --variant z-image-turbo-inpaint `
   --set image=ast_xxx --set mask=ast_yyy --prompt "门口站着一只橘猫，暖色灯光"
 ```
+
+## 抠图：两个变体怎么选
+
+| 变体 | 模型 | 适合 | 别用 |
+|---|---|---|---|
+| `birefnet` | BiRefNet 1024（ComfyUI 核心节点） | 通用兜底、场景/静物 | 动漫人物容易留白块 |
+| `rembg-anime` | ISNet Anime（rembg CLI） | **动漫 / 二次元人物立绘** | 场景、静物、建筑——主体会被整块删掉 |
+
+### 白边和白块是两个问题
+
+1. **白边（fringe）**：核心节点 `JoinImageWithAlpha` 只改 alpha、保留原 RGB，
+   边缘像素仍是「前景 × a + 白背景 × (1−a)」的混合色，合成到非白背景就显形。
+   `rembg-anime` 默认用 `decontaminate=white` 反解前景色修掉。
+2. **白块（孔洞漏抠）**：脸颊两侧、头发与脖子之间的白色空隙被模型判成前景，alpha 是 **1.0**。
+   反混合对它无效，只能换模型。ISNet Anime 对这类小空隙判断明显更准。
+
+实测 10 张动漫人物立绘：边缘亮度中位 **145.7 → 28.8**，孔洞消失，误删 0/10。
+
+### 参数
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `decontaminate` | `white` | 原图白底（生成图常见）用 `white`；照片/彩色背景用 `auto`（pymatting）；不处理用 `none` |
+| `edge_shrink` | `0` | 边缘仍有硬边残留时加 1~2 px，主体会略微变瘦 |
+
+### 边界（重要）
+
+`rembg-anime` **只认动漫人物**。实测草地素材、花拱门、森林小屋三张，输出几乎全透明——
+主体被整块删掉。不确定图里是不是动漫人物时，用 `birefnet`。
+
+`isnet-anime` 标注 `commercial_ok: false`（上游授权未确认），商业用途前自行核实。
+
+### 耗时
+
+CLI 一次性进程：**首次约 32 秒**（import onnxruntime + 加载 168 MB 模型），
+文件缓存热了之后 **约 2.7 秒/张**。`timeout_sec` 给了 600。
 
 ## 加一个新模型
 

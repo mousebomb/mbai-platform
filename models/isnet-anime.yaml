@@ -1,0 +1,19 @@
+id: isnet-anime
+name: ISNet Anime（动漫人物分割）
+family: isnet
+kind: upstream
+# 未能确认到明确的可商用授权，按保守处理。商业用途前请自行核实上游仓库（danielgatis/rembg）
+license: unknown
+commercial_ok: false
+vram_profile: light
+# 权重是 onnx，由 rembg 自己按名字下载到 U2NET_HOME（PLATFORM_MATTING_MODEL_DIR），
+# 不走 files 声明；doctor 不逐个校验，任务启动时报错兜底。
+files: {}
+restorable: true
+notes: >-
+  rembg 内置模型，约 170 MB onnx，CPU 推理约 1 秒/张。
+  实测在 10 张动漫人物立绘上：边缘亮度中位从 145.7 降到 67.6，
+  脸颊两侧/头发下缘的「白色空隙被误判为前景」问题消失，0 张误删。
+  **只适合动漫人物**：草地、花拱门、森林小屋各测一张，主体几乎被整块删除。
+  还原：设 U2NET_HOME 后 `new_session('isnet-anime')` 会自动下载，
+  或把已有 onnx 直接放进 PLATFORM_MATTING_MODEL_DIR。

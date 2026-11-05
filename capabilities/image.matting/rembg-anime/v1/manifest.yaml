@@ -1,0 +1,61 @@
+capability: image.matting
+variant: rembg-anime
+version: v1
+title: "动漫人物抠图（isnet-anime）"
+description: >-
+  只用于动漫 / 二次元角色立绘，输出带透明通道的 PNG（RGBA）。
+  相比 image.matting/birefnet，它能把「被前景包围的白色空隙」正确判成背景——
+  脸颊两侧、头发与脖子之间的空隙这类。实测 10 张人物图：0 张误删，
+  边缘亮度中位从 145.7 降到 67.6，白边明显减轻。
+  ⚠️ 能力边界：场景、静物、建筑、商品图会让它把主体整块删掉
+  （实测草地素材、花拱门、森林小屋三张，输出几乎全透明）。
+  不确定图里是不是动漫人物时，用 image.matting/birefnet 更安全。
+  默认带白底反混合（decontaminate=white），适合原图是白底的生成图；
+  背景不是白色请改 auto（pymatting 通用估计）或 none（不做反混合）。
+model_id: isnet-anime
+engine: cli
+maturity: L1
+
+guidance:
+  when_to_use: >-
+    动漫 / 二次元角色立绘，尤其是头发与脸、头发与衣服之间有大量白色空隙的图。
+    这类图用 birefnet 会残留一块块白斑。
+  avoid_when: >-
+    场景、静物、建筑、商品图——主体会被整块删掉，这类请用 image.matting/birefnet。
+    另外本模型 commercial_ok=false（授权未确认），商业用途前请自行核实。
+  cost: "CPU 约 1 秒/张，不占显存；首次调用要加载模型，多几秒"
+
+cli:
+  command:
+    - '{matting_python}'
+    - '{root}\scripts\engines\rembg_matting.py'
+    - '--image'
+    - '{image}'
+    - '--out'
+    - '{out}'
+    - '--model'
+    - 'isnet-anime'
+    - '--model-dir'
+    - '{matting_model_dir}'
+    - '--decontaminate'
+    - '{decontaminate}'
+    - '--edge-shrink'
+    - '{edge_shrink}'
+  timeout_sec: 600
+  output_ext: png
+
+inputs:
+  image:
+    type: image
+    required: true
+  # 原图背景是白色（生成图常见）就用 white；照片/彩色背景用 auto；不处理用 none
+  decontaminate:
+    type: string
+    default: white
+    options: [white, auto, none]
+  # 边缘仍有硬边残留时再加 1~2px，会让主体略微变瘦
+  edge_shrink:
+    type: int
+    default: 0
+    min: 0
+    max: 3
