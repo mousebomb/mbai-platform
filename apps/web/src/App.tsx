@@ -247,7 +247,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="logo">◈</span>
+          <img className="logo" src="/icon-64.png" alt="" />
           <div>
             <div className="title">mbai-platform</div>
             <div className="subtitle">统一模型池 · 统一队列</div>

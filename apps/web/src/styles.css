@@ -57,9 +57,11 @@ textarea {
   gap: 12px;
 }
 
+/* ç«™ç‚¹å›¾æ ‡å³å“ç‰Œæ ‡ï¼šåœ†è§’å·²ç»çƒ˜è¿› pngï¼Œè¿™é‡Œä¸è¦å†åŠ  border-radius */
 .logo {
-  color: var(--accent);
-  font-size: 22px;
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 
 .title {
@@ -699,7 +701,7 @@ button.ghost:hover {
   }
 }
 
-/* ---------- ÃÉ°æ»­²¼£¨¾Ö²¿ÖØ»æ£© ---------- */
+/* ---------- ï¿½É°æ»­ï¿½ï¿½ï¿½ï¿½ï¿½Ö²ï¿½ï¿½Ø»æ£© ---------- */
 .mask-editor {
   margin-top: 8px;
 }
@@ -712,7 +714,7 @@ button.ghost:hover {
   border-radius: 6px;
   background: #000;
   cursor: crosshair;
-  /* ´¥ÆÁ/ÊÖĞ´±ÊÍÏ¶¯Ê±²»Òª±»Ò³Ãæ¹ö¶¯ÇÀ×ß */
+  /* ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Ğ´ï¿½ï¿½ï¿½Ï¶ï¿½Ê±ï¿½ï¿½Òªï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
   touch-action: none;
 }
 
@@ -724,7 +726,7 @@ button.ghost:hover {
   margin-top: 8px;
 }
 
-/* µ±Ç°Ñ¡ÖĞµÄ»­±Ê/ÏğÆ¤ */
+/* ï¿½ï¿½Ç°Ñ¡ï¿½ĞµÄ»ï¿½ï¿½ï¿½/ï¿½ï¿½Æ¤ */
 .mask-tools button.on {
   border-color: var(--accent);
   color: var(--accent);
