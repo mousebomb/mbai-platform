@@ -11,14 +11,19 @@
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-model%20runtime-2b2b2b?style=flat-square)
 ![MCP](https://img.shields.io/badge/MCP-stdio-6E56CF?style=flat-square)
 
-**一站式本地 AI 能力平台**：生图 / 改图 / 抠图 / 超分 / 图生视频 / 语音合成 / 音色克隆 / 音色设计 / 语音转写，
-统一 REST 接口交给本地智能体调用。单卡 RTX 3060 12GB / Windows 上实测跑通。
+**一站式本地 AI 能力平台**：生图 / 改图 / 蒙版重绘 / 抠图 / 超分 / 立绘拆层 / 图生视频 /
+语音合成 / 音色克隆 / 音色设计 / 语音转写，一套 REST 接口 + 一个网页 + 一个 MCP 服务交给本地智能体调用。
+单卡 RTX 3060 12GB / Windows 上实测跑通。
 
-- **图片** —— 文生图（多模型切换）、指令改图、图生图、蒙版重绘、抠图、超分
-- **视频** —— 首帧驱动图生视频（FramePack 分节生成）
-- **音频** —— 语音合成（自然语言情绪指令）、音色克隆、音色设计/插值、语音转写
+| 分组 | 已接能力 | 变体数 |
+|---|---|---|
+| 图片 | 文生图（5 个模型）、指令改图、参考图生图、蒙版重绘、抠图（通用 / 动漫）、超分（2 个）、立绘拆层（分层 PSD） | 13 |
+| 音频 | 语音合成（4 个）、音色克隆、音色设计（插值 / 文字造卡）、语音转写（CPU / GPU） | 9 |
+| 视频 | 首帧驱动图生视频（FramePack 分节生成） | 1 |
 
-完整清单（每个变体的模型、引擎与选用边界）见 [能力清单](#能力清单当前)。
+**12 项能力 / 23 个变体**已接；矩阵里另有 9 项明确标「未接」（ControlNet、换脸、人脸修复、视频延展……），
+不糊弄。产物有五种形态：图片、视频、音频、文本、二进制文件（PSD / ZIP）。
+每个变体的模型、引擎与选用边界见 [能力清单](#能力清单当前)。
 
 设计原则：**不自研推理内核**。ComfyUI 当模型运行时，平台只做控制平面（能力注册表、统一队列、产物库、引擎适配器）。
 
@@ -26,38 +31,51 @@
 
 ## 界面
 
-**生成** —— 左边选能力和变体，表单按 `manifest.yaml` 的 `inputs` 自动生成（这里是 CosyVoice2 的音色下拉，
-候选来自本机音色目录）；右边是统一队列，图片/音频/视频混在一个列表里，进度实时刷新。
+**总览** —— 左边选能力变体，表单按 `manifest.yaml` 的 `inputs` 自动生成（这里是 Z-Image Turbo 的
+prompt / 尺寸 / 步数 / 采样器）；右边是统一队列，图片、音频、文本、PSD 混在一个列表里，2 秒轮询。
 
-![生成界面](docs/images/ui-generate.png)
+![总览](docs/images/ui-overview.png)
 
-**语音合成** —— 选 CosyVoice 3.0 变体，音色直接下拉（候选来自本机音色目录），
-`instruct` 写自然语言情绪指令（"用清脆甜美的少女音吐槽，语气夸张、带笑意"），
-分段长度 / 句间停顿 / 语速都有默认值。音频任务走本地 CLI 引擎，**ComfyUI 没开也能提交**——
-所以这张截图顶部是「引擎离线」，任务照样 26 秒跑完。
-
-![语音合成](docs/images/ui-tts.png)
-
-**造音色** —— 一句话描述生成一张新音色卡（`output.wav` + 逐字文本 `output.txt`），
-复制进音色目录后，上面所有 TTS 变体都能选到它。注意描述里的性别/音高不可靠，造完要量一次 F0 复核。
-
-![造音色](docs/images/ui-voicedesign.png)
-
-**作品墙** —— 三种产物并排，音频直接内联播放：TTS 卡片标音色名，造卡产物标「声音卡」，
-点右上角 `×` 连任务带产物一起删。
+**作品墙** —— 五种产物同屏：抠图的透明 PNG（`rembg-anime`）、音频卡片（内联播放 + 音色名）、
+文生图、PSD / ZIP（不内联，直接给下载链接）、文本（拆层的质检报告）。点右上角 `×` 连任务带产物一起删。
 
 ![作品墙](docs/images/ui-gallery.jpg)
 
-![音频作品](docs/images/ui-audio-gallery.png)
+**能力矩阵** —— 21 项能力按成熟度 L0~L3 排：已接的展开到「变体 · 引擎」，
+没接的直说「未接」，实测过但还没接的也标出来。当前 L1×11、L2×1、L0×9。
 
-**蒙版重绘** —— 在画布上直接涂（红色 = 要重画的区域），涂完停手约 0.5 秒自动上传，
-然后照常提交；不需要专门的 inpaint 模型（见下面「蒙版重绘」一节）。
+![能力矩阵](docs/images/ui-matrix.png)
+
+**蒙版重绘** —— 在原图上直接涂（屏幕上红色 = 要重画的区域），涂完停手约 0.5 秒自动上传，
+然后照常提交。不需要专门的 inpaint 模型，见 [蒙版重绘](#蒙版重绘局部重绘)。
 
 ![蒙版重绘](docs/images/ui-inpaint.png)
 
-**能力矩阵** —— 19 项能力按成熟度 L0~L3 排，没接的直说「未接」，不糊弄。
+**立绘拆层** —— 单张动漫立绘 → 语义分层 PSD（遮挡区域自动补全），参数只有分辨率 / 步数 / 种子 /
+显存档。12 GB 卡走 `--group_offload`，1024 分辨率约 9~12 分钟，产物是 PSD + 层包 ZIP + 预览 + 质检报告。
 
-![能力矩阵](docs/images/ui-matrix.png)
+![立绘拆层](docs/images/ui-layer-split.png)
+
+**语音合成** —— 音色直接下拉（候选来自本机音色目录，选中即试听参考音频），
+`instruct` 写自然语言情绪指令；分段长度 / 句间停顿 / 语速都有默认值。
+音频任务走本地 CLI 引擎，**ComfyUI 没开也能提交**。
+
+![语音合成](docs/images/ui-tts.png)
+
+**音色设计（插值）** —— 两段参考音频 + 各自的逐字文本，`ratio` 决定偏向哪一端
+（听感中点约 0.38~0.40，不是 0.5）。产物是普通 wav，想常驻就固化进音色目录。
+
+![音色插值](docs/images/ui-voice-blend.png)
+
+**语音转写** —— 用来校验 TTS 产物：把合成好的音频转回文本，抓「整段乱码」「instruct 被念进正文」
+这类问题。产物是 `output.jsonl`，每行一条，`text` 已去掉情感/语言标签。
+
+![语音转写](docs/images/ui-asr.png)
+
+**图生视频** —— FramePack 首帧驱动，给一张图 + 一句动作描述就出 30fps 视频；
+2 秒片约 5~8 分钟，开跑前会先释放 ComfyUI 占的显存。
+
+![图生视频](docs/images/ui-video.png)
 
 ## 目录
 
@@ -135,8 +153,8 @@ PLATFORM_EXTRA_MODEL_DIRS=["F:/AI/ComfyUI/models"]
 | `PLATFORM_API_URL` | `http://127.0.0.1:8000` | 平台地址（MCP 客户端连它） |
 | `PLATFORM_WORKER_CONCURRENCY` | `1` | 单卡串行；多卡再改 |
 
-选装引擎（CosyVoice2 / CosyVoice3 / Qwen3-TTS / FramePack）各有一组路径变量，
-见 `.env.example`。**没配也不会影响图片能力**：只在使用该变体时启动前报错，
+选装引擎（CosyVoice2 / CosyVoice3 / Qwen3-TTS / FramePack / See-through 拆层 / ASR 转写 / rembg 抠图）
+各有一组路径变量，见 `.env.example`。**没配也不会影响图片能力**：只在使用该变体时启动前报错，
 提示你缺哪个变量，不会静默跑一个空路径。
 
 
@@ -204,6 +222,8 @@ Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match 'uv\\python'
 | CosyVoice 仓库（固定 `86e26f54`）+ Matcha-TTS 子模块 | ~120 MB | `scripts\bootstrap-cosyvoice.ps1`（可选） | `engines\cosyvoice\` |
 | CosyVoice2-0.5B 模型目录（钉 revision `9d5c22a8`） | ~4.4 GB | 同上 | `engines\cosyvoice\pretrained_models\` |
 | CosyVoice conda 环境（py3.10 + pynini + torch cu121） | ~7 GB | 同上 | 系统 conda `envs\cosyvoice\` |
+| See-through 仓库（固定 `df019de`）+ uv venv（torch 2.8 cu128） | ~4 GB | `scripts\bootstrap-seethrough.ps1` | `D:\AI\see-through` / `D:\AI\envs\see-through` |
+| See-through 权重（HF 缓存） | ~9.5 GB | 首次任务自动下载 | `PLATFORM_SEETHROUGH_HF_HOME` |
 
 下载脚本读的是 **`models/*.yaml` 的 `source` 字段**，不是写死的文件列表：加新模型只要在 YAML 里写清
 `repo + remote 路径`，脚本不用改。同一份权重被多个变体共用（比如 MOSS 的文本编码器）只下一次。
@@ -273,28 +293,35 @@ wait_job("job_yyy")  → succeeded + <仓库>\data\artifacts\job_yyy\matting_000
 
 ## 能力清单（当前）
 
-| 能力 | 变体 | 模型 | 引擎 |
-|---|---|---|---|
-| `image.txt2img` | `z-image-turbo` | Z-Image Turbo 6B int8（8 步，快） | ComfyUI |
-| `image.txt2img` | `qwen-image-aio` | Qwen-Image AIO 合并版（26.5 GB，质量档） | ComfyUI |
-| `image.txt2img` | `moss-image-sft` | MOSS-Image 5B SFT int8（版式强） | ComfyUI |
-| `image.txt2img` | `moss-image-base` | MOSS-Image 5B Base int8 | ComfyUI |
-| `image.txt2img` | `sd15-community` | A1111 链过来的 SD1.5 检查点（8 个，下拉切换 + 可选 LoRA） | ComfyUI |
-| `image.edit` | `qwen-image-edit-2509` | Qwen-Image-Edit 2509 fp8 + Lightning 4 步 | ComfyUI |
-| `image.img2img` | `z-image-turbo-i2i` | Z-Image Turbo 6B int8（denoise 控保留度） | ComfyUI |
-| `image.inpaint` | `z-image-turbo-inpaint` | Z-Image Turbo 6B int8（蒙版重绘） | ComfyUI |
-| `image.matting` | `birefnet` | BiRefNet（输出透明 PNG） | ComfyUI |
-| `image.matting` | `rembg-anime` | ISNet Anime（**仅动漫人物**，孔洞/白边明显更干净） | CLI（独立 uv venv） |
-| `image.layer_split` | `see-through` | See-through V3（动漫立绘 → 分层 PSD，12 GB 走 group_offload） | CLI（独立 uv venv） |
-| `image.upscale` | `realesrgan-anime` | realesr-animevideov3 | CLI（ncnn-vulkan） |
-| `image.upscale` | `realesrgan-x4plus` | realesrgan-x4plus | CLI（ncnn-vulkan） |
-| `audio.tts` | `cosyvoice2` | CosyVoice2-0.5B（零样本，音色从本机清单里选） | CLI（独立 conda 环境） |
-| `audio.tts` | `cosyvoice2-instruct` | CosyVoice2-0.5B（音色 + 自然语言指令定情绪/语速） | CLI（独立 conda 环境） |
-| `audio.voice_clone` | `cosyvoice2-clone` | CosyVoice2-0.5B（上传参考音频克隆） | CLI（独立 conda 环境） |
-| `audio.voice_design` | `blend` | CosyVoice2-0.5B（两段嗓音插值成一个新音色） | CLI（独立 conda 环境） |
-| `audio.asr` | `sensevoice-cpu` | SenseVoiceSmall（CPU，不占显存，默认选它） | CLI（独立 uv venv） |
-| `audio.asr` | `sensevoice-batch` | SenseVoiceSmall（GPU，跑前卸载 ComfyUI 模型） | CLI（独立 uv venv） |
-| `video.img2video` | `framepack-i2v` | FramePack I2V HY（首帧驱动，分节生成） | CLI（独立便携环境） |
+21 项能力里 **12 项已接、共 23 个变体**，其余 9 项在矩阵里标「未接」。每个变体的选用边界
+（`when_to_use` / `avoid_when` / `cost`）写在 manifest 的 `guidance` 块里，`GET /v1/capabilities`
+与 `GET /llms.txt` 读的是同一份数据。
+
+| 能力 | 变体 | 模型 | 引擎 | 产物 |
+|---|---|---|---|---|
+| `image.txt2img` | `z-image-turbo` | Z-Image Turbo 6B int8（8 步，快） | ComfyUI | 图片 |
+| `image.txt2img` | `qwen-image-aio` | Qwen-Image AIO 合并版（26.5 GB，质量档） | ComfyUI | 图片 |
+| `image.txt2img` | `moss-image-sft` | MOSS-Image 5B SFT int8（版式强） | ComfyUI | 图片 |
+| `image.txt2img` | `moss-image-base` | MOSS-Image 5B Base int8 | ComfyUI | 图片 |
+| `image.txt2img` | `sd15-community` | A1111 链过来的 SD1.5 检查点（8 个，下拉切换 + 可选 LoRA） | ComfyUI | 图片 |
+| `image.edit` | `qwen-image-edit-2509` | Qwen-Image-Edit 2509 fp8 + Lightning 4 步 | ComfyUI | 图片 |
+| `image.img2img` | `z-image-turbo-i2i` | Z-Image Turbo 6B int8（denoise 控保留度） | ComfyUI | 图片 |
+| `image.inpaint` | `z-image-turbo-inpaint` | Z-Image Turbo 6B int8（蒙版重绘） | ComfyUI | 图片 |
+| `image.matting` | `birefnet` | BiRefNet（输出透明 PNG） | ComfyUI | 透明 PNG |
+| `image.matting` | `rembg-anime` | ISNet Anime（**仅动漫人物**，孔洞/白边明显更干净） | CLI（独立 uv venv） | 透明 PNG |
+| `image.layer_split` | `see-through` | See-through V3（动漫立绘 → 分层 PSD，12 GB 走 group_offload） | CLI（独立 uv venv） | 图片 + PSD + ZIP + 文本 |
+| `image.upscale` | `realesrgan-anime` | realesr-animevideov3 | CLI（ncnn-vulkan） | 图片 |
+| `image.upscale` | `realesrgan-x4plus` | realesrgan-x4plus | CLI（ncnn-vulkan） | 图片 |
+| `audio.tts` | `cosyvoice2` | CosyVoice2-0.5B（零样本，音色从本机清单里选） | CLI（独立 conda 环境） | 音频 |
+| `audio.tts` | `cosyvoice2-instruct` | CosyVoice2-0.5B（音色 + 自然语言指令定情绪/语速） | CLI（独立 conda 环境） | 音频 |
+| `audio.tts` | `cosyvoice2-segmented` | CosyVoice2-0.5B（长文按句切分，固定句间停顿） | CLI（独立 conda 环境） | 音频 |
+| `audio.tts` | `cosyvoice3-segmented` | CosyVoice3-0.5B（分段 + 生僻字注音 `微[x][ūn]`） | CLI（独立 conda 环境） | 音频 |
+| `audio.voice_clone` | `cosyvoice2-clone` | CosyVoice2-0.5B（上传参考音频克隆，不入音色清单） | CLI（独立 conda 环境） | 音频 |
+| `audio.voice_design` | `blend` | CosyVoice2-0.5B（两段嗓音插值成一个新音色） | CLI（独立 conda 环境） | 音频 |
+| `audio.voice_design` | `qwen3-voice-design` | Qwen3-TTS VoiceDesign（一句话描述造音色卡） | CLI（独立 uv venv） | 音频 + 文本 |
+| `audio.asr` | `sensevoice-cpu` | SenseVoiceSmall（CPU，不占显存，默认选它） | CLI（独立 uv venv） | 文本（jsonl） |
+| `audio.asr` | `sensevoice-batch` | SenseVoiceSmall（GPU，跑前卸载 ComfyUI 模型） | CLI（独立 uv venv） | 文本（jsonl） |
+| `video.img2video` | `framepack-i2v` | FramePack I2V HY（首帧驱动，分节生成） | CLI（独立便携环境） | 视频 |
 
 ### 换模型版本不用改代码
 
@@ -580,6 +607,11 @@ CLI 一次性进程：**首次约 32 秒**（import onnxruntime + 加载 168 MB 
 - 每个产物都记录 `model_id`，方便溯源和 A/B
 - **结果本身是文本时**（转写、比对报告、评分），写成 `.txt`/`.jsonl` 当产物收，
   不要塞进 `job.error` 或日志——`KIND_BY_SUFFIX` 认这两个扩展名，`Artifact.kind` 是 `text`
+- **产物是不内联预览的二进制文件**（PSD、ZIP、工程文件）时，用 `file` kind：
+  `contracts.Artifact.kind` / `media.KIND_BY_SUFFIX` / `assets.MEDIA_TYPES` 三处同步，
+  前端 `ArtifactMedia` 给下载链接（它的默认分支是 `<img>`，不处理会显示破图）
+- **一次产出多个文件**时，`cli` 适配器只收 `--out` 所在目录的**顶层**文件，
+  中间态请放临时目录，收完删掉，否则引擎侧会无限增长
 - **一次要多个同类输入**时，manifest 里写 `multiple: true`，参数值是 asset id 数组，
   `cli.command` 里用独立的 `{参数名}` 占位符（整个参数就是一个占位符才会展开成多项）
 - **不同变体的选用边界**写在 `guidance` 块（`when_to_use` / `avoid_when` / `cost`），
@@ -595,6 +627,8 @@ CLI 一次性进程：**首次约 32 秒**（import onnxruntime + 加载 168 MB 
 | `scripts\download-models.py` | 按注册表还原权重（`--check` 体检 / `--dry-run` 预览 / `--models-dir` 换位置） | 换机器 / 权重损坏 |
 | `scripts\download-tools.ps1` | 下载并解压 Real-ESRGAN ncnn-vulkan 工具包（幂等） | 换机器 / 用超分 |
 | `scripts\bootstrap-cosyvoice.ps1` | 还原音频引擎：clone CosyVoice 固定 commit、建 conda 环境、装依赖、下 4.8 GB 模型、写 `.env`（幂等） | 换机器 / 想用 TTS |
+| `scripts\bootstrap-seethrough.ps1` | 还原拆层引擎：clone See-through 固定 commit、建 uv venv、装 torch cu128、修 assets 目录、验 CUDA | 换机器 / 想用拆层 |
+| `scripts\engines\see_through_split.py` | 拆层包装：跑上游推理 → 导层 → 打包 ZIP → 写质检报告 | CLI 适配器调用 |
 | `scripts\start-engine.ps1` | 启动引擎（8188） | 每次开机 |
 | `scripts\engines\asr_transcribe.py` | SenseVoice 转写，输出 `output.jsonl`（CLI 适配器调用，也可手动跑） | 校验 TTS 产物 |
 | `scripts\smoke-test.py` | HTTP + 队列端到端冒烟 | 改完控制平面 |

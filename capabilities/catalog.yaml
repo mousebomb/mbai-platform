@@ -1,11 +1,11 @@
-# 能力目标全集：20 项，含尚未接入的（首页矩阵要诚实显示「缺什么」）。
+# 能力目标全集：21 项，含尚未接入的（首页矩阵要诚实显示「缺什么」）。
 # 某能力的成熟度等级 = 它所有变体 maturity 的最大值；没有变体的 = L0。
 # stage 对应 docs/platform-plan-v2.md §6 的分阶段（M1~M4）。
 capabilities:
   - id: image.txt2img
     title: 文生图
     stage: M1
-    note: 已有 2 个变体
+    note: 已有 5 个变体（Z-Image / Qwen-Image AIO / MOSS ×2 / SD1.5 社区）
   - id: image.img2img
     title: 参考图生图
     stage: M2
@@ -21,7 +21,7 @@ capabilities:
   - id: image.matting
     title: 抠图
     stage: M2
-    note: 已接 BiRefNet（输出透明 PNG）
+    note: 已有 2 个变体（BiRefNet 通用 / ISNet Anime 仅动漫）
   - id: image.inpaint
     title: 蒙版重绘
     stage: M2
@@ -73,7 +73,11 @@ capabilities:
   - id: audio.tts
     title: 语音合成
     stage: M3
-    note: 2 个变体（零样本 / 情感指令）
+    note: 已有 4 个变体（零样本 / 情感指令 / 分段 / CosyVoice3 长文）
+  - id: audio.asr
+    title: 语音转写
+    stage: M2
+    note: 已接 SenseVoiceSmall（CPU / GPU 两个变体，短音频用 CPU 更快）
   - id: audio.voice_clone
     title: 声音克隆
     stage: M3
@@ -81,4 +85,4 @@ capabilities:
   - id: audio.voice_design
     title: 音色设计
     stage: M3
-    note: 已接双音色插值（中间态不稳）
+    note: 双音色插值（中间态不稳）+ Qwen3 文字造卡
