@@ -1,0 +1,83 @@
+capability: image.layer_split
+variant: see-through
+version: v1
+title: "立绘拆层（See-through V3，出分层 PSD）"
+description: >-
+  单张动漫立绘 → 语义分层 PSD（遮挡区域自动补全），最多 23 层：
+  前后头发、脸、眼白/瞳孔/睫毛/眉毛（左右分开）、嘴、鼻、耳、脖子、
+  上装/下装/手/腿/鞋等。产物是「素材」，不含绑定/网格/物理。
+  实测（RTX 3060 12 GB / 1024 分辨率 / 30 步 / group_offload）：单图 11.9 分钟，
+  峰值显存 10.3 GB，标准正面立绘拆出 16 层（24 个 tag 里 8 个判为不存在）。
+  ⚠️ 画布是方形 pad 后的尺寸（1024×1024），不是原图比例；
+  每层已按画布坐标导出，位置关系保留。
+  ⚠️ 只认动漫立绘：真人照片、写实图、场景图会出鬼东西。
+model_id: see-through-v3
+engine: cli
+maturity: L1
+
+guidance:
+  when_to_use: >-
+    需要把一张动漫角色立绘拆成可编辑图层（Live2D / Spine / 2.5D 绑定前的素材准备）。
+    遮挡区域会被补全，所以拆出来的层能独立平移而不露背景。
+  avoid_when: >-
+    真人照片、写实图、场景/静物（模型只在动漫立绘上训练过）。
+    非常规姿势、复杂配饰/道具、裙摆与腿的前后关系仍会出错——
+    后者要再跑上游的 heuristic_partseg.py seg_wdepth / seg_wlr 后处理。
+    需要像素级无损还原的场合也不行：这是重新生成，不是抠图。
+  cost: >-
+    RTX 3060 12 GB / 1024 分辨率 / 30 步约 12 分钟，峰值显存约 10 GB，
+    开跑前会卸载 ComfyUI 的模型（下一次出图要多付 10~15 秒重载）。
+    首次运行还要下约 9.5 GB 权重。
+
+cli:
+  command:
+    - '{seethrough_python}'
+    - '{root}\scripts\engines\see_through_split.py'
+    - '--image'
+    - '{image}'
+    - '--out'
+    - '{out}'
+    - '--home'
+    - '{seethrough_home}'
+    - '--hf-home'
+    - '{seethrough_hf_home}'
+    - '--res'
+    - '{resolution}'
+    - '--steps'
+    - '{steps}'
+    - '--seed'
+    - '{seed}'
+    - '--mode'
+    - '{mode}'
+  timeout_sec: 3600
+  # 预览图兜底产物；PSD / 层包 / 报告由脚本按同目录写出
+  output_ext: png
+  # 12 GB 卡：ComfyUI 空闲也占 8 GB，不卸就 OOM
+  free_comfy_vram: true
+
+inputs:
+  image:
+    type: image
+    required: true
+  # 1024 是 12 GB 上的实测平衡点；1280 峰值约 10 GB 但更慢，再高会 OOM
+  resolution:
+    type: int
+    default: 1024
+    min: 512
+    max: 1280
+    multiple_of: 64
+  steps:
+    type: int
+    default: 30
+    min: 10
+    max: 50
+  seed:
+    type: int
+    default: 42
+    min: 0
+    max: 2147483647
+  # full 只适合更大显存的卡；nf4 需要 bitsandbytes（本机未装，脚本里保留但不在下拉里）
+  mode:
+    type: string
+    default: offload
+    options: [offload, full]

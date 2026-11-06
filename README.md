@@ -285,6 +285,7 @@ wait_job("job_yyy")  → succeeded + <仓库>\data\artifacts\job_yyy\matting_000
 | `image.inpaint` | `z-image-turbo-inpaint` | Z-Image Turbo 6B int8（蒙版重绘） | ComfyUI |
 | `image.matting` | `birefnet` | BiRefNet（输出透明 PNG） | ComfyUI |
 | `image.matting` | `rembg-anime` | ISNet Anime（**仅动漫人物**，孔洞/白边明显更干净） | CLI（独立 uv venv） |
+| `image.layer_split` | `see-through` | See-through V3（动漫立绘 → 分层 PSD，12 GB 走 group_offload） | CLI（独立 uv venv） |
 | `image.upscale` | `realesrgan-anime` | realesr-animevideov3 | CLI（ncnn-vulkan） |
 | `image.upscale` | `realesrgan-x4plus` | realesrgan-x4plus | CLI（ncnn-vulkan） |
 | `audio.tts` | `cosyvoice2` | CosyVoice2-0.5B（零样本，音色从本机清单里选） | CLI（独立 conda 环境） |

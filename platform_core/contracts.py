@@ -35,7 +35,8 @@ class Artifact(BaseModel):
     id: str = Field(default_factory=lambda: new_id("art"))
     job_id: str
     # text 用于「结果本身是文本」的能力（ASR 转写、比对报告），落盘为 .txt / .jsonl
-    kind: Literal["image", "video", "audio", "text"] = "image"
+    # file 用于二进制交付物（拆层的 PSD / 层包 zip）：不内联预览，只提供下载
+    kind: Literal["image", "video", "audio", "text", "file"] = "image"
     path: str
     width: int | None = None
     height: int | None = None

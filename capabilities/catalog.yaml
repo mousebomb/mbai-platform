@@ -17,7 +17,7 @@ capabilities:
   - id: image.layer_split
     title: 图层分离
     stage: M4
-    note: 模型在，12 GB 跑不动
+    note: 已接 See-through V3（出分层 PSD，12 GB 走 group_offload）
   - id: image.matting
     title: 抠图
     stage: M2

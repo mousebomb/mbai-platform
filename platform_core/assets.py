@@ -37,6 +37,9 @@ MEDIA_TYPES = {
     # 文本产物（ASR 转写等）：带 charset 才能让浏览器直接显示中文，否则乱码
     ".txt": "text/plain; charset=utf-8",
     ".jsonl": "application/x-ndjson; charset=utf-8",
+    # 二进制交付物（拆层的 PSD / 层包）：浏览器不内联渲染，直接下载
+    ".psd": "image/vnd.adobe.photoshop",
+    ".zip": "application/zip",
 }
 # 上传大小上限（20 MB）
 MAX_ASSET_BYTES = 20 * 1024 * 1024

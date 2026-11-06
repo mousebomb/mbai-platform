@@ -5,7 +5,7 @@
 - 远程仓库：`git@github.com:mousebomb/mbai-platform.git`
 - 目标机器：Windows + 单卡 RTX 3060 12GB，局域网访问
 - 方案文档：`docs/platform-plan-v2.md`（有效）；v1 已作废，只在作者本机、不入库
-- 接入细节与实测数据：`docs/moss-image-integration.md`
+- 接入细节与实测数据：`docs/moss-image-integration.md`（MOSS 出图）、`docs/see-through-integration.md`（拆层）
 - 历史开发日志：在作者本地、不随仓库分发（所以文中偶尔出现 `devlog` 引用属正常）
 
 ---
@@ -472,6 +472,85 @@ CLI 一次性进程：首次约 **32 秒**（import onnxruntime + 加载模型�
 
 反混合下限用 `alpha > 0.08`：再低分母趋零，发丝尖端会被放大成彩色噪点。
 
+## 4.6 拆层：`image.layer_split/see-through`
+
+See-through（SIGGRAPH 2026，代码 Apache-2.0）把**一张动漫立绘**拆成语义分层 PSD，
+最多 23 层，遮挡区域由扩散模型补全。接进来的方式是**上游脚本原样跑 + 一层薄包装**，
+`platform_core` 一行没动（只扩展了一个产物 kind，见下）。
+
+### 为什么是 cli，不是 ComfyUI
+
+1. 独立仓库 + 独立环境（torch 2.8 cu128 / diffusers 0.37），跟平台的 cu130 冲突；
+2. 12 GB 卡必须 `--group_offload`（峰值约 10 GB），ComfyUI 空闲就占 8 GB →
+   manifest 里 `cli.free_comfy_vram: true`；
+3. 推理不是节点图（SDXL 双管线 13+11 组 + Marigold 深度 + PSD 后处理），
+   搬进 ComfyUI 等于重写推理，违背「不自研推理内核」。
+
+### 实测（RTX 3060 12 GB / 1024 / 30 步 / group_offload）
+
+| 项 | 实测 |
+|---|---|
+| 单图耗时 | 9.3~11.9 分钟（首跑含 9.5 GB 权重下载） |
+| 峰值显存 | 10.3 GB（12 GB 卡可用，但别同时开别的） |
+| 层数 | 24 个 tag 里 **16 层非空**（标准正面立绘） |
+| 重建质量 | 合成图 vs pad 后输入 21.9 dB，差异 2.57% 像素 >16（层边界） |
+| 显存档 | `full` 只适合更大卡；`nf4` 需要 bitsandbytes（本机没装） |
+
+空层是正常的：`headwear / eyewear / earwear / neckwear / tail / wings / objects`
+在没有对应部件时会被模型判为不存在，不进 PSD。
+
+### 必须记住的三件事
+
+1. **PSD 画布是方形 pad 后的尺寸**（1024×1024），不是原图比例。上游把输入
+   `center_square_pad_resize` 成正方形再推理；每层已按画布坐标导出（位置已烘进图层，
+   平移不露背景）。要回到原图比例得按 pad 信息反算，`report.json` 里有每层 bbox。
+2. **这不是抠图，是重新生成**：像素不严格等于原图，层边界必然有轻微差异。
+   要「无损抠图」用 `image.matting`；要「可独立平移的图层」才用它。
+3. **只认动漫立绘**：真人照片 / 写实 / 场景图会出鬼东西。非常规姿势、
+   复杂配饰、裙摆与腿的前后关系仍会错，后者要用上游
+   `inference/scripts/heuristic_partseg.py seg_wdepth / seg_wlr` 做深度/左右再分。
+
+### 产物：新增 `file` kind
+
+```
+data/artifacts/<job_id>/output.png    合成预览（kind=image）
+                        layers.psd    分层 PSD（kind=file）
+                        layers.zip    PSD + 每层 PNG + report.json（kind=file）
+                        report.txt    质检摘要（kind=text）
+```
+
+`psd / zip` 是平台第一次出现的「二进制交付物」，所以 `contracts.Artifact.kind`
+加了 `file`，`media.KIND_BY_SUFFIX` 加了 `.psd/.zip → file`，前端
+`ArtifactMedia` 给下载链接而不是 `<img>`（默认分支是 `<img>`，不处理会显示破图）。
+
+`cli` 适配器**只收顶层文件**，所以包装脚本把一切都平铺在 job 目录里，
+中间态（每层 PNG、上游 workspace）落在临时目录，打包完就删——引擎的
+`workspace/layerdiff_output/` 不会无限增长。
+
+### 环境与配置
+
+```
+D:\AI\envs\see-through            uv venv + torch 2.8.0+cu128（不是 conda）
+D:\AI\see-through                 上游仓库（git clone）
+D:\AI\models\hf-seethrough        权重缓存 ~9.5 GB（HF_HOME）
+.env                              PLATFORM_SEETHROUGH_PYTHON / _HOME / _HF_HOME
+```
+
+三个都必须配：占位符替换不到会**在启动前**直接报错，不会静默跑空路径。
+
+### 搭环境时踩过的坑
+
+1. **C 盘不够**：交接文档要求 60 GB，本机 C 只剩 32 GB。venv、仓库、HF 缓存全放 D 盘；
+   `HF_HOME` 不设的话权重会钻进 `C:\Users\<你>\.cache\huggingface`（已有 10 GB）。
+2. **git 全局代理是死的**：`http.proxy=127.0.0.1:7890` 但 7890 没在听。
+   `pip/uv` 装 `git+https://` 依赖会直接卡住。临时用 `GIT_CONFIG_GLOBAL` 指向一个不含
+   proxy 的配置文件，比改全局配置安全（见 §8 的同名问题）。
+3. **`.ps1` 不能写中文**：PowerShell 5.1 把无 BOM 的脚本按 GBK 读，中文会炸成解析错误。
+   引导脚本一律 ASCII，工具链统一 `uv venv` 而不是 conda。
+
+两次手工实测、质量核对（21.9 dB）与交接包 `eval_layers.py` 的两个坑，见
+`docs/see-through-integration.md`。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -587,6 +666,11 @@ png/webp → image，wav/mp3/flac/ogg/m4a → audio，mp4/webm/mov → video，t
 没有它，ASR 这类「结果就是文本」的能力跑完会被 `cli.collect` 判失败——
 收集器只认 `KIND_BY_SUFFIX` 里的媒体扩展名，txt 会被跳过，然后 `raise AdapterError`。
 前端 `ArtifactMedia` 也要有 text 分支，默认分支是 `<img>`，txt 会显示成破图。
+
+**`file` 是第五种 kind**（`image.layer_split` 引入）：psd / zip 这类二进制交付物
+不内联预览，前端只给下载链接。加新 kind 时三处必须同步：
+`contracts.Artifact.kind` 的 Literal、`media.KIND_BY_SUFFIX`、`assets.MEDIA_TYPES`，
+再检查前端 `ArtifactMedia` 的分支（默认是 `<img>`）。
 
 ### 5.4 workflow.json
 
@@ -725,6 +809,14 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
   不确定图类型时用 `birefnet`。不要做成自动选模型
 - **`rembg-anime` 首次调用约 32 秒**（import onnxruntime + 加载 168 MB 模型），
   缓存热了之后约 2.7 秒/张；别拿首跑耗时当单张成本
+
+- **拆层（`image.layer_split`）会独占 GPU 12 分钟**：开跑前强制 `/free` 卸载 ComfyUI 模型，
+  期间 ComfyUI 出图要重载（多付 10~15 秒），且不要在它跑的时候再提交 ComfyUI 任务
+- **拆层的 PSD 画布是方形 pad 后的尺寸**，不是原图比例；`report.txt` / `report.json` 里有每层 bbox
+- **拆层不是无损**：像素是重新生成的，要「逐像素抠图」用 `image.matting`
+- **拆层权重不在模型热池**：走 HF 缓存（`PLATFORM_SEETHROUGH_HF_HOME`，约 9.5 GB），
+  `doctor` 查不到它；首次任务时自动下载
+- **拆层没有进度细分**：只有上游 tqdm 的百分比，第二组（head）会从 0% 重新涨，属正常
 
 ## 9.1 垃圾回收（TTL）
 

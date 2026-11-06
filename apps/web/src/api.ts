@@ -5,7 +5,8 @@ export type JobState = "queued" | "running" | "succeeded" | "failed" | "cancelle
 export interface Artifact {
   id: string;
   job_id: string;
-  kind: "image" | "video" | "audio" | "text";
+  /** image/video/audio/text 内联预览；file 是二进制交付物（PSD/zip），只给下载 */
+  kind: "image" | "video" | "audio" | "text" | "file";
   path: string;
   width: number | null;
   height: number | null;

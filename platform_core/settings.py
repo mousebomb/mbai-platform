@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     matting_python: Path | None = None
     # rembg 用 U2NET_HOME 找 onnx 权重，脚本里会读这个值设环境变量
     matting_model_dir: Path | None = None
+    # ---- 拆层（See-through）：独立仓库 + 独立 venv（torch 2.8 cu128）----
+    # 官方脚本里 device='cuda' 写死，只能 CUDA；12 GB 必须 --group_offload
+    seethrough_python: Path | None = None
+    seethrough_home: Path | None = None
+    # 权重（约 9.5 GB）由上游 from_pretrained 下到 HF 缓存，不进模型热池
+    seethrough_hf_home: Path | None = None
 
     @property
     def artifacts_dir(self) -> Path:

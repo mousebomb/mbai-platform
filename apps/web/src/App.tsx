@@ -605,7 +605,7 @@ function Field({
   );
 }
 
-/** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 / 文本链接 */
+/** 按产物类型渲染：图片缩略图 / 音频播放器 / 视频播放器 / 文本链接 / 二进制文件下载 */
 function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?: string }) {
   const url = artifactUrl(artifact);
   if (artifact.kind === "audio")
@@ -620,13 +620,21 @@ function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?
         {fileName(artifact.path)}
       </a>
     );
+  if (artifact.kind === "file")
+    // 二进制交付物（PSD / 层包）：浏览器渲染不了，给下载链接
+    return (
+      <a className={`${className ?? ""} text-artifact`} href={url} download={fileName(artifact.path)}>
+        ↓ {fileName(artifact.path)}
+      </a>
+    );
   return <img className={className} src={url} alt={fileName(artifact.path)} loading="lazy" />;
 }
 
-/** 产物规格：图片是宽高，音视频是时长，文本没有规格 */
+/** 产物规格：图片是宽高，音视频是时长，文本/文件没有规格 */
 function artifactSpec(a: Artifact): string {
   if (a.kind === "image") return a.width && a.height ? `${a.width}×${a.height}` : "";
   if (a.kind === "text") return "文本";
+  if (a.kind === "file") return fileName(a.path).split(".").pop()?.toUpperCase() ?? "文件";
   return a.duration ? `${a.duration.toFixed(1)}s` : "";
 }
 

@@ -25,6 +25,9 @@ KIND_BY_SUFFIX = {
     # 文本产物：ASR 用 .jsonl（每行一条转写），其它纯文本能力用 .txt
     ".txt": "text",
     ".jsonl": "text",
+    # 二进制交付物：拆层的 PSD 和层包。前端只给下载链接，不内联渲染
+    ".psd": "file",
+    ".zip": "file",
 }
 
 

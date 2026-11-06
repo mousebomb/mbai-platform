@@ -1,0 +1,22 @@
+id: see-through-v3
+name: See-through V3（动漫立绘拆层）
+family: see-through
+kind: upstream
+# 代码 Apache-2.0；权重是 OpenRAIL++（允许商用，但带使用限制，用前读模型卡）
+license: openrail++ (代码 Apache-2.0)
+commercial_ok: true
+# 12 GB 能用，但必须 --group_offload（峰值约 10 GB），单图 12 分钟级 → 不是「舒适」
+vram_profile: degraded
+# 权重由上游 from_pretrained 直接下到 HF 缓存（PLATFORM_SEETHROUGH_HF_HOME），
+# 不进模型热池，所以这里不声明 files；doctor 不逐个校验，首次任务时下载
+files: {}
+restorable: true
+notes: >-
+  两个权重仓库：layerdifforg/seethroughv0.0.2_layerdiff3d（约 8 GB，SDXL LayerDiff 3D）
+  与 24yearsold/seethroughv0.0.1_marigold（约 1.5 GB，动漫微调版 Marigold 深度）。
+  合计约 9.5 GB，首次运行自动下载（走 HF_ENDPOINT 镜像，需关掉 Xet 否则只拿到指针文件）。
+  还原：把 PLATFORM_SEETHROUGH_HF_HOME 指到一个够大的盘，跑一次任务即自动下齐；
+  不要把缓存留在 C 盘（本机 C 盘只剩 32 GB）。
+  实测（RTX 3060 12 GB / 1024 分辨率 / 30 步 / group_offload）：
+  峰值显存 10.3 GB，单图 11.9 分钟（含首跑 9.5 GB 下载），24 个语义 tag 里 16 层非空。
+  上游脚本把 device='cuda' 写死，没有 CPU / MPS 分支，只能 NVIDIA。
