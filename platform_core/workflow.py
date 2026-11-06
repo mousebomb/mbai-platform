@@ -43,6 +43,11 @@ def _check_input(name: str, spec: dict[str, Any], value: Any) -> Any:
     elif kind == "string":
         if not isinstance(value, str):
             raise ValueError(f"参数 {name} 需要字符串，收到 {value!r}")
+        # manifest 显式写了 options 就当枚举：非法值现在拒绝，别等引擎跑十分钟才失败
+        # （options_from 注入的候选不在 spec 里，那类按 checkpoint/lora/voice 各自的规则校验）
+        options = spec.get("options")
+        if options and value not in options:
+            raise ValueError(f"参数 {name}={value!r} 不在候选里，可选: {', '.join(map(str, options))}")
     elif kind == "text":
         # 长文本（TTS 台词等）：前端用 textarea，后端只做字符串校验
         if not isinstance(value, str):

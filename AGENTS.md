@@ -631,7 +631,8 @@ constants:
 `inputs.type` 支持 `string` / `int` / `float` / `prompt` / `text` / `image` / `audio` / `voice` / `mask` /
 `checkpoint` / `lora`，
 可选 `required`、`default`、`min`、`max`、`multiple_of`、`options_from`、`multiple`。
-校验在 `workflow._check_input`，**未知参数直接拒绝**（防前端塞字段改工作流）。
+校验在 `workflow._check_input`，**未知参数直接拒绝**（防前端塞字段改工作流）；
+manifest 里显式写的 `options` 当枚举用，非法值当场 422（别等引擎跑十分钟才失败）。
 `image` / `audio` / `mask` 的值是 `asset_id`，worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
 
 `multiple: true` 让素材类参数接受 **asset_id 数组**（批量 ASR 一次传多条）。两处配套逻辑：
