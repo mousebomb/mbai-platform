@@ -26,6 +26,9 @@ const TERMINAL: JobState[] = ["succeeded", "failed", "cancelled"];
 
 const LEVELS: Maturity[] = ["L0", "L1", "L2", "L3"];
 
+// 作品墙每页条数（按任务分页，一个任务的多个产物会一起出现在同一页）
+const GALLERY_PAGE_SIZE = 12;
+
 function duration(job: Job): string {
   const end = job.finished_at ?? (job.state === "running" ? Date.now() / 1000 : null);
   if (!job.started_at || !end) return "-";
@@ -34,6 +37,13 @@ function duration(job: Job): string {
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
+}
+
+/** 提示词来源：图片任务用 prompt，TTS 用 text，造卡用 description；对象类参数按 JSON 文本处理 */
+function jobPrompt(job: Job): string {
+  const src = job.params.prompt ?? job.params.text ?? job.params.description;
+  if (typeof src === "string") return src;
+  return src ? JSON.stringify(src) : "";
 }
 
 export default function App() {
@@ -46,6 +56,11 @@ export default function App() {
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
   const [matrix, setMatrix] = useState<CapabilityMatrixRow[]>([]);
+  // 作品墙单独分页取数：队列只拉最近 60 条，历史作品翻到更早的要看这里的页码
+  const [galleryJobs, setGalleryJobs] = useState<Job[]>([]);
+  const [galleryTotal, setGalleryTotal] = useState(0);
+  const [galleryPage, setGalleryPage] = useState(1);
+  const [galleryLoading, setGalleryLoading] = useState(false);
   const [tab, setTab] = useState<"jobs" | "gallery" | "matrix">("jobs");
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
@@ -207,20 +222,67 @@ export default function App() {
     try {
       await api.deleteJob(id);
       await refreshJobs();
+      // 删的可能是 60 条队列之外的历史作品，succeededKey 不会变，得自己刷当前页
+      if (tab === "gallery") await loadGallery(galleryPage);
     } catch (e: unknown) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setNotice(detail ?? String(e));
     }
   }
 
-  const gallery = useMemo(
-    () =>
-      jobs
-        .filter((j) => j.state === "succeeded")
-        .flatMap((j) => j.artifacts.map((a) => ({ job: j, artifact: a })))
-        .sort((a, b) => b.artifact.created_at - a.artifact.created_at),
+  /** 取一页已完成任务；页码越界（删掉了最后一页的最后一件）时自动退回上一页 */
+  const loadGallery = useCallback(async (page: number) => {
+    setGalleryLoading(true);
+    try {
+      const offset = (page - 1) * GALLERY_PAGE_SIZE;
+      // 总数和这一页一起取：删掉历史作品后页码要能跟着收拢
+      const [pageJobs, total] = await Promise.all([
+        api.jobs(GALLERY_PAGE_SIZE, offset, "succeeded"),
+        api.jobCount("succeeded"),
+      ]);
+      if (pageJobs.length === 0 && page > 1) {
+        setGalleryPage(page - 1);
+        return;
+      }
+      setGalleryJobs(pageJobs);
+      setGalleryTotal(total);
+    } catch {
+      setOffline(true);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, []);
+
+  // 最近任务里已完成任务的签名：新增 / 完成 / 删除都会变，作品墙据此刷新
+  const succeededKey = useMemo(
+    () => jobs.filter((j) => j.state === "succeeded").map((j) => j.id).join(","),
     [jobs]
   );
+
+  // 总数在「作品」tab 之外也要显示（tab 上的角标），所以单独取，不跟着翻页走
+  useEffect(() => {
+    api
+      .jobCount("succeeded")
+      .then(setGalleryTotal)
+      .catch(() => {
+        /* 接口不通由轮询统一报，这里不重复提示 */
+      });
+  }, [succeededKey]);
+
+  useEffect(() => {
+    if (tab !== "gallery") return;
+    loadGallery(galleryPage);
+  }, [tab, galleryPage, succeededKey, loadGallery]);
+
+  const gallery = useMemo(
+    () =>
+      galleryJobs
+        .flatMap((j) => j.artifacts.map((a) => ({ job: j, artifact: a })))
+        .sort((a, b) => b.artifact.created_at - a.artifact.created_at),
+    [galleryJobs]
+  );
+
+  const galleryPages = Math.max(1, Math.ceil(galleryTotal / GALLERY_PAGE_SIZE));
 
   // 顶部一行汇总：L0 x · L1 x · L2 x · L3 x，让「缺什么」一眼可见
   const levelCounts = useMemo(() => {
@@ -320,7 +382,7 @@ export default function App() {
               任务 <span className="count">{jobs.length}</span>
             </button>
             <button className={tab === "gallery" ? "tab active" : "tab"} onClick={() => setTab("gallery")}>
-              作品 <span className="count">{gallery.length}</span>
+              作品 <span className="count">{galleryTotal}</span>
             </button>
             <button
               className={tab === "matrix" ? "tab active" : "tab"}
@@ -341,47 +403,79 @@ export default function App() {
               ))}
             </div>
           ) : tab === "gallery" ? (
-            <div className="gallery">
-              {gallery.length === 0 && <div className="empty">还没有作品</div>}
-              {gallery.map(({ job, artifact }) => (
-                <div key={artifact.id} className="card">
-                  {/* 图片点开看大图；音视频直接内联播放，套 <a> 会误触跳转 */}
-                  {artifact.kind === "image" ? (
-                    <a
-                      href={artifactUrl(artifact)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="card-media"
-                    >
-                      <ArtifactMedia artifact={artifact} />
-                    </a>
-                  ) : (
-                    <div className="card-media">
-                      {artifact.kind === "audio" && (
-                        <span className="media-label">
-                          {/* TTS 用音色名；造卡没有音色参数，标成「声音卡」而不是「克隆」 */}
-                          {String(
-                            job.params.voice ??
-                              (job.capability.startsWith("audio.voice_design") ? "声音卡" : "克隆")
+            <div className="gallery-wrap">
+              <div className="gallery">
+                {gallery.length === 0 && !galleryLoading && <div className="empty">还没有作品</div>}
+                {gallery.map(({ job, artifact }) => {
+                  const prompt = jobPrompt(job);
+                  return (
+                    <div key={artifact.id} className="card">
+                      {/* 图片点开看大图；音视频直接内联播放，套 <a> 会误触跳转 */}
+                      {artifact.kind === "image" ? (
+                        <a
+                          href={artifactUrl(artifact)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="card-media"
+                        >
+                          <ArtifactMedia artifact={artifact} />
+                        </a>
+                      ) : (
+                        <div className="card-media">
+                          {artifact.kind === "audio" && (
+                            <span className="media-label">
+                              {/* TTS 用音色名；造卡没有音色参数，标成「声音卡」而不是「克隆」 */}
+                              {String(
+                                job.params.voice ??
+                                  (job.capability.startsWith("audio.voice_design") ? "声音卡" : "克隆")
+                              )}
+                            </span>
                           )}
-                        </span>
+                          <ArtifactMedia artifact={artifact} />
+                        </div>
                       )}
-                      <ArtifactMedia artifact={artifact} />
+                      {/* 提示词最多两行，完整内容在 title 里；右侧按钮一键复制 */}
+                      {prompt && (
+                        <div className="card-prompt" title={prompt}>
+                          {prompt}
+                        </div>
+                      )}
+                      <div className="card-meta">
+                        <span>{artifactSpec(artifact)}</span>
+                        <span>{job.variant}</span>
+                        <CopyButton text={prompt} />
+                      </div>
+                      <button
+                        className="card-del"
+                        title="删除这张作品"
+                        onClick={() => remove(job.id)}
+                      >
+                        ×
+                      </button>
                     </div>
-                  )}
-                  <div className="card-meta">
-                    <span>{artifactSpec(artifact)}</span>
-                    <span>{job.variant}</span>
-                  </div>
-                  <button
-                    className="card-del"
-                    title="删除这张作品"
-                    onClick={() => remove(job.id)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
+              {/* 分页条：单页时也留着位置，避免切页时高度跳动 */}
+              <div className="gallery-pager">
+                <button
+                  className="pager-btn"
+                  disabled={galleryPage <= 1}
+                  onClick={() => setGalleryPage((p) => Math.max(1, p - 1))}
+                >
+                  上一页
+                </button>
+                <span>
+                  第 {galleryPage} / {galleryPages} 页 · 共 {galleryTotal} 次生成
+                </span>
+                <button
+                  className="pager-btn"
+                  disabled={galleryPage >= galleryPages}
+                  onClick={() => setGalleryPage((p) => p + 1)}
+                >
+                  下一页
+                </button>
+              </div>
             </div>
           ) : (
             <div className="matrix">
@@ -630,6 +724,55 @@ function ArtifactMedia({ artifact, className }: { artifact: Artifact; className?
   return <img className={className} src={url} alt={fileName(artifact.path)} loading="lazy" />;
 }
 
+/** 一键复制提示词：局域网是 http 非安全上下文，没有 Clipboard API 时退回 execCommand */
+function CopyButton({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "done" | "fail">("idle");
+  if (!text) return null;
+
+  async function copy() {
+    const ok = await copyText(text);
+    setState(ok ? "done" : "fail");
+    window.setTimeout(() => setState("idle"), 1200);
+  }
+
+  return (
+    <button
+      className={`card-copy ${state}`}
+      title="复制提示词"
+      onClick={(e) => {
+        // 卡片上有打开大图/删除等点击行为，别把这次点击冒泡出去
+        e.stopPropagation();
+        copy();
+      }}
+    >
+      {state === "done" ? "已复制" : state === "fail" ? "复制失败" : "复制"}
+    </button>
+  );
+}
+
+async function copyText(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // 权限被拒就落回下面的兜底
+    }
+  }
+  // 临时 textarea + execCommand：http 局域网下唯一能用的复制方式
+  const el = document.createElement("textarea");
+  el.value = text;
+  el.style.position = "fixed";
+  el.style.opacity = "0";
+  document.body.appendChild(el);
+  el.select();
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
 /** 产物规格：图片是宽高，音视频是时长，文本/文件没有规格 */
 function artifactSpec(a: Artifact): string {
   if (a.kind === "image") return a.width && a.height ? `${a.width}×${a.height}` : "";
@@ -641,13 +784,7 @@ function artifactSpec(a: Artifact): string {
 function JobRow({ job, onCancel, onDelete }: { job: Job; onCancel: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   // 图片任务用 prompt，TTS 用 text，造卡用 description；都没有就交给下面的占位符
-  const promptSource = job.params.prompt ?? job.params.text ?? job.params.description;
-  const prompt =
-    typeof promptSource === "string"
-      ? promptSource
-      : promptSource
-        ? JSON.stringify(promptSource)
-        : "";
+  const prompt = jobPrompt(job);
   const done = TERMINAL.includes(job.state);
 
   return (

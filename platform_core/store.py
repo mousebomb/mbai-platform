@@ -57,17 +57,31 @@ class JobStore:
             row = self._conn.execute("SELECT payload FROM jobs WHERE id=?", (job_id,)).fetchone()
         return Job.model_validate_json(row["payload"]) if row else None
 
-    def list(self, limit: int = 50, state: JobState | None = None) -> list[Job]:
+    def list(
+        self, limit: int = 50, state: JobState | None = None, offset: int = 0
+    ) -> list[Job]:
+        """按创建时间倒序取一页；offset 用于作品墙翻历史。"""
         sql = "SELECT payload FROM jobs"
         args: list[object] = []
         if state:
             sql += " WHERE state=?"
             args.append(state.value)
-        sql += " ORDER BY created_at DESC LIMIT ?"
-        args.append(limit)
+        sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        args.extend([limit, max(offset, 0)])
         with self._lock:
             rows = self._conn.execute(sql, args).fetchall()
         return [Job.model_validate_json(r["payload"]) for r in rows]
+
+    def count(self, state: JobState | None = None) -> int:
+        """符合条件的任务总数，前端算总页数用。"""
+        sql = "SELECT COUNT(*) AS n FROM jobs"
+        args: list[object] = []
+        if state:
+            sql += " WHERE state=?"
+            args.append(state.value)
+        with self._lock:
+            row = self._conn.execute(sql, args).fetchone()
+        return int(row["n"])
 
     def claim_next(self) -> Job | None:
         """原子地把最早的一条 queued 置为 running；队列空则返回 None。"""

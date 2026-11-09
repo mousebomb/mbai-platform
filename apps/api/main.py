@@ -210,8 +210,15 @@ async def create_job(req: JobRequest) -> Job:
 
 
 @app.get("/v1/jobs", response_model=list[Job])
-async def list_jobs(limit: int = 50, state: JobState | None = None) -> list[Job]:
-    return store.list(limit=limit, state=state)
+async def list_jobs(limit: int = 50, offset: int = 0, state: JobState | None = None) -> list[Job]:
+    return store.list(limit=limit, state=state, offset=offset)
+
+
+# 必须声明在 /v1/jobs/{job_id} 之前，否则 "count" 会被当成任务 id
+@app.get("/v1/jobs/count")
+async def count_jobs(state: JobState | None = None) -> dict:
+    """按状态统计任务数，作品墙分页取总条数用。"""
+    return {"count": store.count(state=state)}
 
 
 @app.get("/v1/jobs/{job_id}", response_model=Job)

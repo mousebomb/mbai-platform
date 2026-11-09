@@ -449,6 +449,12 @@ button.ghost:hover {
 }
 
 /* ---------- 作品墙 ---------- */
+.gallery-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .gallery {
   padding: 16px 18px 24px;
   display: grid;
@@ -507,12 +513,98 @@ button.ghost:hover {
   letter-spacing: 0.04em;
 }
 
+/* 卡片上的提示词：最多两行，完整内容在 title 里 */
+.card-prompt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 0 9px 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text);
+  opacity: 0.72;
+  word-break: break-word;
+}
+
 .card-meta {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
   padding: 6px 9px;
   font-size: 11px;
   color: var(--muted);
+}
+
+/* 变体名可能很长（image.layer_split），占满中间剩余宽度靠右，超出省略 */
+.card-meta span:nth-child(2) {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-copy {
+  flex: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.card-copy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.card-copy.done {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.card-copy.fail {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* 分页条：贴住面板底部，翻页不用先滚到末尾 */
+.gallery-pager {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager-btn {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* 删除按钮：常驻但半透明，悬停才显眼；触屏也有足够可见度 */

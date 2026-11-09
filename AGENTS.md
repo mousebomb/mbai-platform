@@ -560,7 +560,8 @@ D:\AI\models\hf-seethrough        权重缓存 ~9.5 GB（HF_HOME）
 | GET | `/v1/health` | 引擎状态、注册表错误、缺模型、变体数 |
 | GET | `/v1/capabilities` | 所有变体及 `inputs` 元数据（前端据此生成表单） |
 | POST | `/v1/jobs` | 入队，**202**；参数非法当场 422（不等执行到一半才炸） |
-| GET | `/v1/jobs?limit=&state=` | 列表，按创建时间倒序 |
+| GET | `/v1/jobs?limit=&offset=&state=` | 列表，按创建时间倒序；`offset` 给作品墙翻历史 |
+| GET | `/v1/jobs/count?state=` | 按状态统计条数，前端算总页数（**必须声明在 `{id}` 之前**） |
 | GET | `/v1/jobs/{id}` | 详情 |
 | POST | `/v1/jobs/{id}/cancel` | 取消；已提交引擎的会顺手中断 |
 | DELETE | `/v1/jobs/{id}` | 删除任务记录 + 产物目录，**204**；非终态返回 409 |

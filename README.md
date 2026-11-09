@@ -248,7 +248,7 @@ Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match 'uv\\python'
 - **改前端时**：`npm --prefix apps/web run dev`（5173，热更新，`/v1` 自动代理到 8000）
 
 页面能力：变体下拉 + 按 `manifest.yaml` 的 `inputs` 自动生成表单 + 任务列表（2s 轮询、可取消）
-+ 作品墙。`type: image` 的参数是「选文件即上传」，表单里存 `asset_id`，worker 执行前解析成绝对路径
++ 作品墙（每页 12 件可翻历史，卡片上直接复制当次提示词）。`type: image` 的参数是「选文件即上传」，表单里存 `asset_id`，worker 执行前解析成绝对路径
 （超分这类能力就靠它）。`type: mask` 不出文件选择框，而是在原图上给一块涂抹画布（见「蒙版重绘」）。生成结果不满意可以直接删：任务行末尾的「删除」和作品缩略图右上角的 `×`，
 删的是任务记录 + 磁盘产物文件，不可恢复，会先弹确认框。`prompt` 输入框以 `{` 开头时按 Layout JSON 解析
 （排版控制，见 `docs/moss-image-integration.md`），否则按普通文本发送。

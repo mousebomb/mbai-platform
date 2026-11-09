@@ -107,7 +107,12 @@ export const api = {
   health: () => http.get<Health>("/health").then((r) => r.data),
   capabilities: () => http.get<VariantInfo[]>("/capabilities").then((r) => r.data),
   matrix: () => http.get<CapabilityMatrixRow[]>("/matrix").then((r) => r.data),
-  jobs: (limit = 50) => http.get<Job[]>("/jobs", { params: { limit } }).then((r) => r.data),
+  // offset 用于作品墙翻历史：按创建时间倒序，先跳过 offset 条再取 limit 条
+  jobs: (limit = 50, offset = 0, state?: JobState) =>
+    http.get<Job[]>("/jobs", { params: { limit, offset, state } }).then((r) => r.data),
+  // 某状态下的任务总数，前端算总页数
+  jobCount: (state?: JobState) =>
+    http.get<{ count: number }>("/jobs/count", { params: { state } }).then((r) => r.data.count),
   createJob: (body: { capability: string; variant: string; params: Record<string, unknown> }) =>
     http.post<Job>("/jobs", body).then((r) => r.data),
   cancelJob: (id: string) => http.post<Job>(`/jobs/${id}/cancel`).then((r) => r.data),
