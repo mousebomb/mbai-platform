@@ -27,6 +27,7 @@ from platform_core.assets import (
     image_size,
 )
 from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
+from platform_core.openai_compat import install as install_openai_compat
 from platform_core.registry import registry
 from platform_core.service import store, worker
 from platform_core.settings import settings
@@ -59,6 +60,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OpenAI 兼容层：/v1/models、/v1/audio/speech、/v1/images/generations。
+# 独立模块，只包现有队列与注册表，不新增执行路径
+install_openai_compat(app)
 
 
 @app.get("/v1/health")

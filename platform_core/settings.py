@@ -89,6 +89,21 @@ class Settings(BaseSettings):
     # 权重（约 9.5 GB）由上游 from_pretrained 下到 HF 缓存，不进模型热池
     seethrough_hf_home: Path | None = None
 
+    # ---- OpenAI 兼容层（/v1/audio/speech、/v1/images/generations） ----
+    # 请求不传 model 时用这两个变体；名字不在注册表里则退回该能力下名字序第一个
+    openai_tts_variant: str = "cosyvoice3-segmented"
+    openai_image_variant: str = "z-image-turbo"
+    # OpenAI 客户端发的是 alloy / onyx 这类名字，本机音色是自定义中文名。
+    # 命中平台音色清单就直接用，没命中一律落到这个音色（不报错，保证客户端可用）；
+    # 留空则优先用名为 default 的音色，没有就取名字序第一个
+    openai_default_voice: str | None = None
+    # OpenAI 的 instructions 是可选的，而 instruct 型变体把它声明成必填
+    openai_default_instruct: str = "用自然、平稳的语气朗读。"
+    # 同步等待上限（秒）：对齐 OpenAI SDK 默认超时 600s。超时返回 504，任务仍在队列里跑
+    openai_wait_sec: float = 600.0
+    # OpenAI 默认要 mp3，而 TTS 产物是 wav。留空从 PATH 找 ffmpeg；找不到时非 wav 返回 501
+    ffmpeg: str | None = None
+
     @property
     def artifacts_dir(self) -> Path:
         return self.data_dir / "artifacts"

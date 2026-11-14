@@ -61,6 +61,7 @@ platform_core/         控制平面
   service.py           单例 store + worker
   settings.py          全部路径走 PLATFORM_ 环境变量
   guide.py             /llms.txt 的内容（从注册表现拼，不是静态文件）
+  openai_compat.py     OpenAI 兼容端点（/v1/audio/speech、/v1/images/generations、/v1/models）
 capabilities/<能力>/<变体>/<版本>/{manifest.yaml,workflow.json}
 models/<id>.yaml       模型元数据（files/license/vram_profile），不含权重
 docs/images/           README 里的界面截图（敏感文字已打码）
@@ -570,6 +571,9 @@ D:\AI\models\hf-seethrough        权重缓存 ~9.5 GB（HF_HOME）
 | GET | `/v1/assets/{asset_id}` | 取回素材（前端预览用） |
 | GET | `/v1/voices/{name}/audio` | 音色参考音频试听；路径只来自音色清单，不接受任意路径 |
 | GET | `/llms.txt` | 能力指南（`text/plain`），**每次请求从注册表现拼**，不是静态文件 |
+| GET | `/v1/models` | OpenAI 兼容：已适配端点的变体清单，客户端靠它列候选 |
+| POST | `/v1/audio/speech` | OpenAI 兼容 TTS：入队 → 阻塞等终态 → 回 mp3/wav/flac/aac/opus/pcm |
+| POST | `/v1/images/generations` | OpenAI 兼容生图：入队 → 阻塞等终态 → 回 `url` 或 `b64_json` |
 
 `/llms.txt` 为什么动态生成：变体数量会变，静态文件必然和注册表漂移。
 漂移的文档比没有文档更糟——Agent 会照它提交一个已经不存在的变体，拿到 422 再重试。
@@ -725,6 +729,38 @@ optional_nodes:
 平台重启不打断会话；代价是没法绕过 HTTP 直接动数据库（这是故意的）。
 `wait_job` 返回产物的**绝对路径**，Agent 可以直接读文件。
 
+### 5.8 OpenAI 兼容层
+
+`platform_core/openai_compat.py`，`main.py` 里 `install_openai_compat(app)` 一行挂上。
+给 Cherry Studio / Dify / LangChain / openai-python 这类现成客户端用，base_url 填 `/v1`。
+
+**它不新增执行路径**：内部就是「`POST /v1/jobs` 的入队逻辑 → 轮询 store 等终态 →
+回读 `job.artifacts`」。所以作品墙、取消、产物溯源全都照旧生效。别为了这个文件去动
+worker / adapters，它只读注册表和队列。
+
+七条必须记住的：
+
+1. **同步阻塞**。OpenAI 这两个端点是同步的，所以 HTTP 请求会一直挂着等任务跑完
+   （`openai_wait_sec`，默认 600 s 对齐 SDK 超时）。超时 504 但**任务继续在队列里跑**；
+   客户端断开则调 `_cancel()` 取消任务，别让它白占 GPU。
+2. **不做流式**。`stream_format=sse` 直接 400。TTS 产物是引擎进程退出后一次性落盘的
+   （`cosyvoice3_tts.py` 最后才 `torchaudio.save`），边生成边播需要引擎侧逐句 flush +
+   绕开队列的执行路径，那是另一件事。宁可明确拒绝，也不假装支持。
+3. **参数映射按 manifest 的 `inputs`，不写死变体**：正文找 `text`/`input`，音色找 `voice`，
+   `instructions → instruct`，`size → width/height`。新增 TTS 或 txt2img 变体不用改这个文件；
+   接新端点只需要往 `_SPEECH_CAPS` / `_IMAGE_CAPS` 加能力名。
+4. **音色一律兜底**。OpenAI 的 `alloy`/`onyx` 与本机音色无关，命中就直接用，没命中落到
+   `openai_default_voice`（留空取 `default` 或名字序第一个），日志留一行。默认音色**配错**
+   （名字不存在）返回 500，不静默再换一个——否则「声音不对」会变成排障事故。
+5. **mp3 依赖 ffmpeg**。TTS 只出 wav，`mp3/opus/aac/flac/pcm` 现转；`ffmpeg` 留空从 PATH 找，
+   找不到时非 wav 返回 501（不会静默给 wav，客户端会拿到错误后缀）。
+6. **错误信封统一**：`{"error": {message, type, param, code}}`，只对 `/v1/audio/`、`/v1/images/`、
+   `/v1/models` 生效（`RequestValidationError` 的处理器里按路径分流），平台原生接口仍是 FastAPI 的 422。
+7. **`n>1` 是串行提交**（单 worker、单卡），上限 4。别拿它当批量接口用。
+
+实测（RTX 3060，本机）：`z-image-turbo` 512×512 首跑 41 s（含 ComfyUI 冷加载）、热了 4.4 s；
+`cosyvoice3-segmented` 一句 9 字中文 19 s（每次都要重载模型）。
+
 ## 6. 加一个新能力
 
 以「接一个快速出图变体」为例：
@@ -819,6 +855,12 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
 - **拆层权重不在模型热池**：走 HF 缓存（`PLATFORM_SEETHROUGH_HF_HOME`，约 9.5 GB），
   `doctor` 查不到它；首次任务时自动下载
 - **拆层没有进度细分**：只有上游 tqdm 的百分比，第二组（head）会从 0% 重新涨，属正常
+- **OpenAI 兼容层不支持流式**：`stream_format=sse` 直接 400，TTS 是「进程跑完一次性落盘」，
+  不存在可以边生成边播的中间数据
+- **OpenAI 兼容层是同步阻塞的**：一次请求占住一条连接直到任务终态；TTS 每次都要重载模型
+  （实测 9 字中文 19 s），别把它当低延迟接口用
+- **mp3 输出依赖外部 ffmpeg**：没装时只有 `response_format=wav` 可用，其余返回 501
+- **兼容层的音色是「兜底」不是「等效」**：`alloy` 和 `onyx` 在本平台拿到的可能是同一个音色
 
 ## 9.1 垃圾回收（TTL）
 
