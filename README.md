@@ -21,7 +21,7 @@
 | 音频 | 语音合成（4 个）、音色克隆、音色设计（插值 / 文字造卡）、语音转写（CPU / GPU） | 9 |
 | 视频 | 首帧驱动图生视频（FramePack 分节生成） | 1 |
 
-**12 项能力 / 23 个变体**已接；矩阵里另有 9 项明确标「未接」（ControlNet、换脸、人脸修复、视频延展……），
+**12 项能力 / 24 个变体**已接；矩阵里另有 9 项明确标「未接」（ControlNet、换脸、人脸修复、视频延展……），
 不糊弄。产物有五种形态：图片、视频、音频、文本、二进制文件（PSD / ZIP）。
 每个变体的模型、引擎与选用边界见 [能力清单](#能力清单当前)。
 
@@ -336,13 +336,14 @@ c.images.generate(model="z-image-turbo", prompt="a red lantern on snow", size="5
 
 ## 能力清单（当前）
 
-21 项能力里 **12 项已接、共 23 个变体**，其余 9 项在矩阵里标「未接」。每个变体的选用边界
+21 项能力里 **12 项已接、共 24 个变体**，其余 9 项在矩阵里标「未接」。每个变体的选用边界
 （`when_to_use` / `avoid_when` / `cost`）写在 manifest 的 `guidance` 块里，`GET /v1/capabilities`
 与 `GET /llms.txt` 读的是同一份数据。
 
 | 能力 | 变体 | 模型 | 引擎 | 产物 |
 |---|---|---|---|---|
 | `image.txt2img` | `z-image-turbo` | Z-Image Turbo 6B int8（8 步，快） | ComfyUI | 图片 |
+| `image.txt2img` | `flux3-klein` | FLUX 3 Image Klein 5.6B int8（15 步，质量档，11 GiB 全驻留） | ComfyUI | 图片 |
 | `image.txt2img` | `qwen-image-aio` | Qwen-Image AIO 合并版（26.5 GB，质量档） | ComfyUI | 图片 |
 | `image.txt2img` | `moss-image-sft` | MOSS-Image 5B SFT int8（版式强） | ComfyUI | 图片 |
 | `image.txt2img` | `moss-image-base` | MOSS-Image 5B Base int8 | ComfyUI | 图片 |

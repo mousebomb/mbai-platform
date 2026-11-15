@@ -798,6 +798,8 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
 | 变体 | 分辨率 / 步数 | 耗时 |
 |---|---|---|
 | `z-image-turbo` | 1024×1024 / 8 步 | **16.6 s**（首跑，含加载）/ 768×768 端到端 7.2 s |
+| `flux3-klein` | 1024×1024 / 15 步 | **12.5 s**（热态）/ 16.6 s 首跑（含加载） |
+| `flux3-klein` | 1024×1024 / 25 步 | 18 s（队列端到端 20 s） |
 | `moss-image-sft` | 1024×1024 / 25 步 | 46 s |
 | `moss-image-sft` | 1088×1472 / 25 步 | 66 s |
 | `moss-image-base` | 1024×1024 / 50 步 | 79 s |
@@ -819,6 +821,9 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
 ## 9. 已知限制
 
 - `progress` 只有 comfy 引擎是实时的，CLI 引擎（超分 / TTS / FramePack）还是 0/1
+- **FLUX 3 Klein 的权重是 gated 仓库**：新机器 `download-models.py` 必须带 `HF_TOKEN`（`.env` 里），
+  并且该 HF 账号要先在模型页点过「Agree and access repository」。没有 token 时镜像直接 403，
+  `hf-mirror` 本身不会替你接受许可。镜像**透传** token（实测 302 正常），所以不用直连 HF
 - 无鉴权、`CORS allow_origins=["*"]`：内网单人用，**不要映射到公网**
 - 单 worker、单卡串行（`worker_concurrency = 1`）
 - CLI 子进程不随平台服务退出：服务被强杀时 realesrgan 可能残留，`taskkill /IM realesrgan-ncnn-vulkan.exe /F` 清一下

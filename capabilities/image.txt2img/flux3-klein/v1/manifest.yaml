@@ -1,0 +1,72 @@
+capability: image.txt2img
+variant: flux3-klein
+version: v1
+title: "FLUX 3 Image Klein 5.6B（蒸馏 int8）"
+description: >-
+  BFL 2026-10 开源的 5.6B 蒸馏版，4~16 步、cfg 固定 1.0，官方 int8 量化。
+  文本编码器是 Qwen3-VL-4B，全套 11 GiB，12GB 卡能整份驻留，不靠 Q3 量化硬压。
+model_id: flux3-image-klein
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  width:
+    type: int
+    default: 1024
+    min: 512
+    max: 2048
+    multiple_of: 16
+  height:
+    type: int
+    default: 1024
+    min: 512
+    max: 2048
+    multiple_of: 16
+  steps:
+    type: int
+    default: 15
+    min: 4
+    max: 30
+    # 官方蒸馏区间是 4~16，超过 16 不会更细、只会更慢；
+    # 这里不卡死在 16，是因为通用调用方（smoke-test 等）会直接给 25，拒绝比变慢更糟
+  seed:
+    type: int
+    default: -1
+
+# 三种模型文件按角色注入，具体文件由 profiles/*.yaml 决定（本机可换 bf16 / nvfp4 档）
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  text_encoder: "2.inputs.clip_name"
+  vae: "7.inputs.vae_name"
+
+bindings:
+  "3.inputs.text": prompt
+  "5.inputs.width": width
+  "5.inputs.height": height
+  "6.inputs.seed": seed
+  "6.inputs.steps": steps
+  "6.inputs.cfg": cfg
+  "6.inputs.sampler_name": sampler_name
+  "6.inputs.scheduler": scheduler
+
+constants:
+  # 蒸馏版只认这一组：官方模板 15 步 / cfg 1 / er_sde / simple。
+  # 三个都固定在 constants 里，不从 inputs 暴露——乱改采样器只会出一张糊图，不会报错。
+  cfg: 1.0
+  sampler_name: er_sde
+  scheduler: simple
+
+guidance:
+  when_to_use: >-
+    要质量明显高于 z-image-turbo、又不想等 MOSS-Image 46 秒时的默认出图档。
+    5.6B 蒸馏版在 BFL 内部 Elo 里排在 FLUX.2 [pro] 之前，128GB 权重池里目前质量最高的一档。
+  avoid_when: >-
+    需要版式化文字/海报排版时用 moss-image-sft（FLUX 3 的文字能力不如 MOSS 的 layout 模式）；
+    需要 4K 以上大图时不要在 12GB 卡上硬上，会频繁换页。
+  cost: >-
+    1024x1024 / 15 步，RTX 3060 12GB 实测 12.5 秒（热态），首次 16.6 秒（含加载）；
+    25 步约 18 秒。权重 11 GiB 常驻，跑完不卸载。
