@@ -64,3 +64,13 @@ bindings:
 
 constants:
   batch_size: 1
+
+guidance:
+  when_to_use: >-
+    任何带文字、版式、分栏、标题的需求：prompt 可以是 Layout JSON（bbox + 每个元素的 caption），
+    中文小字可控。这是本平台唯一能可靠出中文排版的变体——flux3-klein 会把字形写错，
+    z-image-turbo 会直接省略文字。
+  avoid_when: >-
+    纯写实 / 风景 / 人像且不需要文字——44s 太贵，用 flux3-klein（12.2s）。
+  cost: >-
+    1024x1024 / 25 步 44s，1088x1472 / 25 步 67s。样本量少（n=3），数字取中位数。

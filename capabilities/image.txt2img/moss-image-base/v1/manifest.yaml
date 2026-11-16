@@ -64,3 +64,11 @@ bindings:
 
 constants:
   batch_size: 1
+
+guidance:
+  when_to_use: >-
+    需要 base 权重的原始风格、不要求 SFT 那种版面收敛时用；日常版式任务仍用 moss-image-sft。
+  avoid_when: >-
+    默认不要选：50 步约 79s，是 sft 的 1.8 倍，没有可见收益。本机只跑过 2 次，耗时不可靠。
+  cost: >-
+    1024x1024 / 50 步约 79s（n=2，样本不足，不要当精确值）。

@@ -90,3 +90,12 @@ optional_nodes:
     rewires:
       - ["8", 0, "1", 0]
       - ["8", 1, "1", 1]
+
+guidance:
+  when_to_use: >-
+    需要 SD1.5 生态：指定检查点、挂 LoRA、复现某个画师风格或旧种子。
+  avoid_when: >-
+    追求画质时不要用，它打不过 flux3-klein / z-image-turbo；原生 512，
+    超过 768 容易出双头。任何中文文字需求也不接。
+  cost: >-
+    本机没有历史实测数据（这次对比之前没跑过），不要引用具体耗时。

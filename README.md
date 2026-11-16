@@ -338,7 +338,8 @@ c.images.generate(model="z-image-turbo", prompt="a red lantern on snow", size="5
 
 21 项能力里 **12 项已接、共 24 个变体**，其余 9 项在矩阵里标「未接」。每个变体的选用边界
 （`when_to_use` / `avoid_when` / `cost`）写在 manifest 的 `guidance` 块里，`GET /v1/capabilities`
-与 `GET /llms.txt` 读的是同一份数据。
+与 `GET /llms.txt` 读的是同一份数据。六个 txt2img 变体的横向实测（速度、质量、分工）
+见 [`docs/image-model-comparison.md`](docs/image-model-comparison.md)。
 
 | 能力 | 变体 | 模型 | 引擎 | 产物 |
 |---|---|---|---|---|
