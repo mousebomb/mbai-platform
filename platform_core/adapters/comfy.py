@@ -23,6 +23,7 @@ from websockets.exceptions import ConnectionClosed
 from ..assets import image_size
 from ..comfy_client import ComfyClient
 from ..contracts import Artifact
+from ..media import KIND_BY_SUFFIX, media_duration
 from ..registry import VariantSpec
 from ..settings import settings
 from ..workflow import build_workflow
@@ -206,20 +207,25 @@ class ComfyAdapter(Adapter):
                     for image in node_output.get("images") or []:
                         if image.get("type") != "output":
                             continue
+                        # SaveVideo 也走 images 字段，产物类型只能按扩展名判断
+                        kind = KIND_BY_SUFFIX.get(Path(image["filename"]).suffix.lower())
+                        if kind is None:
+                            continue
                         data = await client.download(
                             image["filename"], image.get("subfolder", ""), image.get("type", "output")
                         )
                         path = out_dir / _safe_name(image["filename"])
                         path.write_bytes(data)
                         # 没有 width/height 参数的变体（比如改图）就从文件头读真实尺寸
-                        size = image_size(data)
+                        size = image_size(data) if kind == "image" else None
                         artifacts.append(
                             Artifact(
                                 job_id=job_id,
-                                kind="image",
+                                kind=kind,
                                 path=str(path),
                                 width=params.get("width") or (size[0] if size else None),
                                 height=params.get("height") or (size[1] if size else None),
+                                duration=media_duration(path) if kind in {"video", "audio"} else None,
                             )
                         )
         finally:
