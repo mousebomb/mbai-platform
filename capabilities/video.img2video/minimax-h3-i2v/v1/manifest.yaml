@@ -1,0 +1,96 @@
+capability: video.img2video
+variant: minimax-h3-i2v
+version: v1
+title: "MiniMax H3 图生视频（首帧 + 原生音频）"
+description: >-
+  给一张首帧图，一次前向出 24fps 视频和 32kHz 立体声，默认挂 4 步 Turbo LoRA。
+  图里带 KJNodes 的两个显存补丁（默认关，见 guidance）。
+model_id: minimax-h3-fl2va-int8
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  image:
+    type: image
+    required: true
+  prompt:
+    type: prompt
+    required: true
+  width:
+    type: int
+    default: 832
+    min: 32
+    max: 2048
+    multiple_of: 32
+  height:
+    type: int
+    default: 480
+    min: 32
+    max: 2048
+    multiple_of: 32
+  length:
+    # 帧数按 17k+5 网格取：73≈3s，124≈5s，362≈15s
+    type: int
+    default: 73
+    min: 5
+    max: 362
+  steps:
+    type: int
+    default: 4
+    min: 1
+    max: 30
+  seed:
+    type: int
+    default: -1
+  chunk_chunks:
+    # 1 = 关掉 MLP 分块；12GB + 64GB 内存实测开了更慢
+    type: int
+    default: 1
+    min: 1
+    max: 16
+  head_chunks:
+    # 1 = 关掉 attention 分组；OOM 时调到 4
+    type: int
+    default: 1
+    min: 1
+    max: 16
+
+bindings:
+  "18.inputs.image": image
+  "8.inputs.prompt": prompt
+  "8.inputs.width": width
+  "8.inputs.height": height
+  "8.inputs.length": length
+  "10.inputs.steps": steps
+  "12.inputs.noise_seed": seed
+  "2.inputs.strength_model": lora_strength
+  "3.inputs.chunks": chunk_chunks
+  "3.inputs.seq_threshold": seq_threshold
+  "4.inputs.head_chunks": head_chunks
+  "16.inputs.fps": fps
+
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  turbo_lora: "2.inputs.lora_name"
+  text_encoder: "5.inputs.clip_name"
+  video_vae: "6.inputs.vae_name"
+  audio_vae: "7.inputs.vae_name"
+
+constants:
+  seq_threshold: 4096
+  lora_strength: 1.0
+  fps: 24
+
+guidance:
+  when_to_use: >-
+    已经有构图确定的静帧，要让它动起来并带上同期声音（说话、环境声、音效）。
+    首帧同时进文本编码器和 VAE，人物/风格会被锁住，比纯文本稳定得多。
+  avoid_when: >-
+    首帧和 width×height 比例不一致时会**被拉伸**（节点对 first_frame 做的是
+    stretch 到画布，不是裁剪）。要么图先裁成目标比例，要么把 width/height 设成图的比例。
+    需要结尾也锁死就等首尾帧变体；超过 15 秒或 2K 以上同理不要硬上。
+  cost: >-
+    比文生视频只多一次 VAE encode，耗时基本一致：832x480/73 帧约 52 s（热），
+    832x480/124 帧约 111 s，1280x736/124 帧约 394 s（RTX 3060 12GB 实测）。
+    分块默认关，开了 73 帧慢约 21%、峰值显存不变。

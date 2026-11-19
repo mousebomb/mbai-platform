@@ -557,6 +557,16 @@ D:\AI\models\hf-seethrough        权重缓存 ~9.5 GB（HF_HOME）
 ComfyUI 0.42 原生带了 H3 的节点，本仓库只做三件事：写权重清单、把官方子图改写成
 API 格式、把 KJNodes 的两个显存 patch 插进模型链。**不需要升 ComfyUI commit**。
 
+两个变体共用一份权重：
+
+| 变体 | 输入 | 说明 |
+|---|---|---|
+| `video.txt2video/minimax-h3-fl2va` | prompt | 纯文本出片 |
+| `video.img2video/minimax-h3-i2v` | image + prompt | 首帧锚定，图里多一个 `LoadImage` |
+
+首帧由节点自己做 `_resize(..., "disabled")`，也就是**拉伸到 width×height**（不是裁剪），
+所以图和目标比例不一致会被拉变形；尾帧才是 cover-crop。平台侧不做任何缩放预处理。
+
 ```
 UNETLoader → LoraLoaderModelOnly(4步 turbo) → MiniMaxChunkFeedForward → MiniMaxLowVRAMAttention
    → BasicGuider / BasicScheduler ─→ SamplerCustomAdvanced → VAEDecode ─┐
@@ -581,8 +591,12 @@ KJNodes 固定 commit `aa2b5ea`，由 `bootstrap-comfy.ps1` 第 5 步装。缺 `
 | 分辨率 / 帧数 | 耗时 | 采样 |
 |---|---|---|
 | 832×480 / 73（3s） | 首次 149 s，热 52 s | 11.4 s/it |
+| 832×480 / 73（3s，图生视频） | 平台重启后首跑 196 s，热 57 s | 11.4 s/it |
 | 832×480 / 124（5s） | 111 s | 22.8 s/it |
 | 1280×736 / 124（5s） | 394 s | 87.7 s/it |
+
+注意「首跑」有两层：引擎冷启动要加载 21 GB DiT，平台重启后第一单还要重新编译图
+（i2v 那次 196 s 里一半是编译）。同一张形状再跑就是热时间。
 
 **分块节点默认关（`chunk_chunks=1`）**。实测开 4 段 MLP + 4 组 head：73 帧慢约 21%、
 124 帧慢约 5%，峰值显存没有变化——这版 ComfyUI 的 dynamic VRAM 已经把峰值压在
@@ -906,9 +920,9 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
   （实测 9 字中文 19 s），别把它当低延迟接口用
 - **mp3 输出依赖外部 ffmpeg**：没装时只有 `response_format=wav` 可用，其余返回 501
 - **兼容层的音色是「兜底」不是「等效」**：`alloy` 和 `onyx` 在本平台拿到的可能是同一个音色
-- **MiniMax H3 只接了文生视频**：首帧/尾帧需要 `LoadImage` 节点，而平台的 `optional_nodes`
-  只能摘节点、不能摘输入槽（摘了 `LoadImage` 会留下悬空连接），所以只能做成独立变体，
-  现在没做
+- **MiniMax H3 的尾帧还没接**：首帧已经做成 `video.img2video/minimax-h3-i2v`；
+  尾帧需要第二个 `LoadImage`，而平台的 `optional_nodes` 只能摘节点、不能摘输入槽
+  （摘了会留悬空连接），所以首尾帧只能再开一个「两张图都必填」的变体
 - **H3 的分块节点在本机是净亏**：见 §4.7 的实测，默认 `chunk_chunks=1`；不要因为「低显存」
   就默认开，先量再开
 - **H3 首跑慢**：12GB 靠 offload，首次要加载 21 GB DiT + 15.7 GB 文本编码器，149 s 里
