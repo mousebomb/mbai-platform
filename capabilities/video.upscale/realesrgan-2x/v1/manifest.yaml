@@ -1,0 +1,57 @@
+capability: video.upscale
+variant: realesrgan-2x
+version: v1
+title: "视频超分（Real-ESRGAN 逐帧 2x~4x）"
+description: >-
+  逐帧 2D 放大：ffmpeg 抽帧 → realesrgan-ncnn-vulkan → 重编码并复制原音轨。
+  不重新采样、不看前后帧，所以不是二采；快镜头会有轻微闪烁。
+model_id: realesr-animevideov3
+engine: cli
+maturity: L1
+
+cli:
+  # 纯标准库脚本，用平台自己的解释器；ffmpeg/ffprobe 从 PATH 找
+  command:
+    - '{platform_python}'
+    - '{root}\scripts\engines\video_upscale.py'
+    - '--input'
+    - '{video}'
+    - '--output'
+    - '{out}'
+    - '--scale'
+    - '{scale}'
+    - '--model'
+    - '{model_name}'
+    - '--tool'
+    - '{tools_dir}\realesrgan\realesrgan-ncnn-vulkan.exe'
+  # 362 帧（15 秒 @24fps）4x 在 3060 上约 20 分钟，留足余量
+  timeout_sec: 2400
+  output_ext: mp4
+
+inputs:
+  video:
+    type: video
+    required: true
+  scale:
+    type: int
+    default: 2
+    min: 2
+    max: 4
+
+constants:
+  # animevideov3 小（1.2 MB）且支持 -s 2/3/4；x4plus 只支持 4x
+  model_name: realesr-animevideov3
+
+guidance:
+  when_to_use: >-
+    已经有一段能看的片子，只想要更大的画布：交付前统一放大、或者把 832x480 的
+    H3 结果做到 1080p 以上。不占显存（ncnn-vulkan 独立进程），也不碰音频。
+  avoid_when: >-
+    想「补回细节」就别用它：这是逐帧插值，不会像二采那样重画。快镜头、大幅手部动作
+    会有闪烁和纹理蠕动，比原片更明显。
+    真人/写实素材建议用 realesrgan-x4plus（只支持 4x），当前变体固定 animevideov3。
+    片长超过 15 秒先切段，单任务 4x 会跑很久。
+  cost: >-
+    RTX 3060 实测（832x480 / 124 帧 / 5 秒）：2x → 1664x960 约 22 s，4x → 3328x1920 约 34 s。
+    按帧数线性增长，362 帧 4x 约 100 s。中间帧 PNG 会占 1 GB 左右临时磁盘，跑完自动删。
+    音频不重编码（-c:a copy），所以文件大小主要来自画面。

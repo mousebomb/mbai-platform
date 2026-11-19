@@ -40,6 +40,7 @@ export interface InputSpec {
     | "text"
     | "image"
     | "audio"
+    | "video"
     | "voice"
     | "mask"
     | "checkpoint"

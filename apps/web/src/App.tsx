@@ -552,9 +552,10 @@ function Field({
     );
   }
 
-  // 图片 / 音频输入：选择文件 → 立即上传 → 预览，表单值存 asset_id
-  if (spec.type === "image" || spec.type === "audio") {
+  // 图片 / 音频 / 视频输入：选择文件 → 立即上传 → 预览，表单值存 asset_id
+  if (spec.type === "image" || spec.type === "audio" || spec.type === "video") {
     const isAudio = spec.type === "audio";
+    const isVideo = spec.type === "video";
     return (
       <label className="field">
         <span>
@@ -563,7 +564,13 @@ function Field({
         </span>
         <input
           type="file"
-          accept={isAudio ? "audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" : "image/png,image/jpeg,image/webp"}
+          accept={
+            isAudio
+              ? "audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4"
+              : isVideo
+                ? "video/mp4,video/webm,video/quicktime"
+                : "image/png,image/jpeg,image/webp"
+          }
           disabled={uploading}
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -575,6 +582,8 @@ function Field({
           <div className="asset-preview">
             {isAudio ? (
               <audio controls src={asset.url} />
+            ) : isVideo ? (
+              <video controls playsInline src={asset.url} />
             ) : (
               <img src={asset.url} alt={asset.filename} />
             )}

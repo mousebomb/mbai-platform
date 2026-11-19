@@ -48,10 +48,10 @@ class Worker:
             spec = registry.get(job.capability, job.variant)
             # 只接受注册表中已声明的参数，防止前端塞入任意字段改工作流
             params = resolve_params(spec, job.params)
-            # image / audio / mask 参数存的是 asset_id，这里解析成绝对路径再交给适配器；
+            # image / audio / video / mask 参数存的是 asset_id，这里解析成绝对路径再交给适配器；
             # 适配器不碰数据库/资产目录，只认文件路径。multiple: true 时是数组
             for name, desc in spec.inputs.items():
-                if desc.get("type") in {"image", "audio", "mask"} and name in params:
+                if desc.get("type") in {"image", "audio", "video", "mask"} and name in params:
                     if isinstance(params[name], list):
                         paths: list[str] = []
                         for asset_id in params[name]:

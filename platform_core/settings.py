@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
 
     # ---- 外部引擎：各自独立的 Python 环境，路径因机器而异，只能写 .env ----
     # 未配置（None）时，用到该引擎的变体会在启动进程前报错并提示配置哪个变量。
+    # 本仓库自带的纯标准库脚本（视频超分等）用平台自己的解释器，不用另配环境
+    platform_python: str = sys.executable
     # CosyVoice：torch 2.3.1+cu121，跟平台的 cu130 不能混用同一个解释器。
     # 这四项的还原由 scripts\bootstrap-cosyvoice.ps1 负责（建环境 + 下模型 + 写 .env）
     cosyvoice_python: Path | None = None

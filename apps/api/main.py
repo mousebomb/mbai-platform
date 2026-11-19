@@ -19,10 +19,13 @@ from platform_core.assets import (
     ASSET_EXTS,
     IMAGE_EXTS,
     MAX_ASSET_BYTES,
+    MAX_VIDEO_BYTES,
     MEDIA_TYPES,
+    VIDEO_EXTS,
     asset_path,
     detect_audio,
     detect_format,
+    detect_video,
     ext_matches,
     image_size,
 )
@@ -97,42 +100,50 @@ async def health() -> dict:
 
 @app.post("/v1/assets")
 async def upload_asset(request: Request, file: UploadFile = File(...)) -> dict:
-    """上传素材：图片（png/jpg/webp）或音频（wav/mp3/flac/ogg/m4a），≤ 20 MB，落盘 data/uploads/<id>.<ext>。"""
-    # 先看 Content-Length 挡掉明显超限的请求，避免大文件先整个落进临时文件
-    cl = request.headers.get("content-length")
-    if cl and cl.isdigit() and int(cl) > MAX_ASSET_BYTES + 1024 * 1024:
-        raise HTTPException(status_code=413, detail="文件超过 20 MB 上限")
-
+    """上传素材：图片（png/jpg/webp）/音频（wav/mp3/flac/ogg/m4a）/视频（mp4/webm/mov），
+    落盘 data/uploads/<id>.<ext>。图片和音频 ≤ 20 MB，视频 ≤ 256 MB。"""
     original = Path(file.filename or "").name
     ext = Path(original).suffix.lower()
     if ext not in ASSET_EXTS:
         raise HTTPException(
             status_code=400,
             detail=f"不支持的素材类型 {ext or '(无扩展名)'}，只允许 "
-            "png/jpg/jpeg/webp/wav/mp3/flac/ogg/m4a",
+            "png/jpg/jpeg/webp/wav/mp3/flac/ogg/m4a/mp4/webm/mov",
         )
+    limit = MAX_VIDEO_BYTES if ext in VIDEO_EXTS else MAX_ASSET_BYTES
 
-    data = await file.read(MAX_ASSET_BYTES + 1)
+    # 先看 Content-Length 挡掉明显超限的请求，避免大文件先整个落进临时文件
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > limit + 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"文件超过 {limit // (1024 * 1024)} MB 上限")
+
+    data = await file.read(limit + 1)
     if not data:
         raise HTTPException(status_code=400, detail="文件为空")
-    if len(data) > MAX_ASSET_BYTES:
-        raise HTTPException(status_code=413, detail="文件超过 20 MB 上限")
+    if len(data) > limit:
+        raise HTTPException(status_code=413, detail=f"文件超过 {limit // (1024 * 1024)} MB 上限")
 
     # 文件头必须和扩展名对上，防止文本/伪造文件混进来
     is_image = ext in IMAGE_EXTS
-    fmt = detect_format(data) if is_image else detect_audio(data)
+    is_video = ext in VIDEO_EXTS
+    if is_image:
+        fmt = detect_format(data)
+    elif is_video:
+        fmt = detect_video(data)
+    else:
+        fmt = detect_audio(data)
     if fmt is None or not ext_matches(ext, fmt):
-        expected = "PNG/JPEG/WebP 图片" if is_image else "WAV/MP3/FLAC/OGG/M4A 音频"
+        expected = "PNG/JPEG/WebP 图片" if is_image else ("MP4/WebM/MOV 视频" if is_video else "WAV/MP3/FLAC/OGG/M4A 音频")
         raise HTTPException(status_code=400, detail=f"文件内容不是有效的 {expected}")
 
-    # 宽高只对图片有意义；音频没有
+    # 宽高只对图片有意义；音频和视频没有
     size = image_size(data) if is_image else None
     asset_id = "ast_" + uuid.uuid4().hex[:12]
     (settings.uploads_dir / f"{asset_id}{ext}").write_bytes(data)
     return {
         "id": asset_id,
         "filename": original,
-        "kind": "image" if is_image else "audio",
+        "kind": "image" if is_image else ("video" if is_video else "audio"),
         "bytes": len(data),
         "width": size[0] if size else None,
         "height": size[1] if size else None,

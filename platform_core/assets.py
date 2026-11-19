@@ -17,8 +17,10 @@ from .settings import settings
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 # 允许上传的音频扩展名（声音克隆的参考音色）
 AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
+# 允许上传的视频扩展名（视频超分这类能力的输入）
+VIDEO_EXTS = {".mp4", ".webm", ".mov"}
 # 素材总集合：asset_path 按它找文件
-ASSET_EXTS = IMAGE_EXTS | AUDIO_EXTS
+ASSET_EXTS = IMAGE_EXTS | AUDIO_EXTS | VIDEO_EXTS
 
 # 扩展名 → MIME。素材下载和产物下载共用这张表，避免两边各维护一份
 MEDIA_TYPES = {
@@ -43,6 +45,8 @@ MEDIA_TYPES = {
 }
 # 上传大小上限（20 MB）
 MAX_ASSET_BYTES = 20 * 1024 * 1024
+# 视频单独给上限：5 秒 1080p H.264 通常 5~20 MB，这里留足二次编码的余量
+MAX_VIDEO_BYTES = 256 * 1024 * 1024
 _ID_RE = re.compile(r"^ast_[0-9a-f]{12}$")
 
 # JPEG 的 SOF 段标记（C0~CF 去掉 DHT/JPG/DAC 三个非 SOF 段）
@@ -75,10 +79,22 @@ def detect_audio(data: bytes) -> str | None:
     return None
 
 
+def detect_video(data: bytes) -> str | None:
+    """魔数识别视频容器：iso bmff（mp4/mov）或 matroska（webm），识别不了返回 None。"""
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        return "isobmff"
+    if data[:4] == b"\x1aE\xdf\xa3":
+        return "webm"
+    return None
+
+
 def ext_matches(ext: str, fmt: str) -> bool:
     """上传扩展名与文件头探测结果是否一致（jpg/jpeg 是同一家族）。"""
     if fmt == "jpeg":
         return ext in {".jpg", ".jpeg"}
+    # mp4 和 mov 都是 iso bmff，容器层面分不出来，按扩展名算都合法
+    if fmt == "isobmff":
+        return ext in {".mp4", ".mov"}
     return ext == f".{fmt}"
 
 

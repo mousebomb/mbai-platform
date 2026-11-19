@@ -608,6 +608,32 @@ KJNodes 固定 commit `aa2b5ea`，由 `bootstrap-comfy.ps1` 第 5 步装。缺 `
 `platform_core/adapters/comfy.py` 的产物收集现在按扩展名判 kind（原来硬编码 `image`），
 所以 `SaveVideo` 出的 mp4 会以 `kind=video` 入库，时长从 mvhd 读。
 
+## 4.8 视频超分：`video.upscale/realesrgan-2x`
+
+`scripts/engines/video_upscale.py`：ffmpeg 抽帧 → realesrgan-ncnn-vulkan 分批放大 →
+libx264 重编码 + **原音轨直接 copy**。属于 `cli` 引擎，用平台自己的解释器
+（`settings.platform_python`），不另建环境。
+
+**它是逐帧 2D 放大，不是二采**：不看前后帧、不重新采样。快镜头会有闪烁，
+所以「补细节」不能靠它。
+
+| 输入（832×480 / 124 帧） | 输出 | 耗时 |
+|---|---|---|
+| 2x | 1664×960 | 22 s |
+| 4x | 3328×1920 | 34 s |
+
+三条实现约束：
+
+1. **模型选 `realesr-animevideov3`**：只有它同时提供 x2/x3/x4 权重；`realesrgan-x4plus`
+   只支持 4x。真人素材用 x4plus 更稳，要的话再加变体。
+2. **分批 12 帧**调用 realesrgan：既摊掉模型加载，又能让日志有百分比
+   （CLI 适配器的进度就是从日志尾部抓 `xx.xx%`，一次跑完整片会一直显示 0）。
+3. **中间帧用硬链接**进批次目录（同卷免复制），失败退回复制；临时目录跑完即删。
+
+为了让它能跑，平台这侧加了 `video` 输入类型：`assets.VIDEO_EXTS`（mp4/webm/mov，
+上限 256 MB）、`detect_video` 魔数校验、`worker` 的 asset_id 解析、`workflow._check_input`
+的类型分支、前端上传控件与 `<video>` 预览。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -623,7 +649,7 @@ KJNodes 固定 commit `aa2b5ea`，由 `bootstrap-comfy.ps1` 第 5 步装。缺 `
 | POST | `/v1/jobs/{id}/cancel` | 取消；已提交引擎的会顺手中断 |
 | DELETE | `/v1/jobs/{id}` | 删除任务记录 + 产物目录，**204**；非终态返回 409 |
 | GET | `/v1/jobs/{id}/file/{filename}` | 取产物，只允许任务目录下的直接子文件 |
-| POST | `/v1/assets` | 上传输入图（multipart 字段 `file`，png/jpg/jpeg/webp ≤ 20 MB），返回 asset_id + 宽高 |
+| POST | `/v1/assets` | 上传输入素材（multipart 字段 `file`）：图片 png/jpg/jpeg/webp 与音频 wav/mp3/flac/ogg/m4a ≤ 20 MB，视频 mp4/webm/mov ≤ 256 MB；返回 asset_id（+ 图片宽高） |
 | GET | `/v1/assets/{asset_id}` | 取回素材（前端预览用） |
 | GET | `/v1/voices/{name}/audio` | 音色参考音频试听；路径只来自音色清单，不接受任意路径 |
 | GET | `/llms.txt` | 能力指南（`text/plain`），**每次请求从注册表现拼**，不是静态文件 |
@@ -689,12 +715,12 @@ constants:
 外部引擎的解释器路径都在 `settings.py` 里（`cosyvoice_python` / `framepack_python` 等），
 换机器用 `.env` 覆盖，例如 `PLATFORM_COSYVOICE_HOME=D:/engines/CosyVoice/CosyVoice`。
 
-`inputs.type` 支持 `string` / `int` / `float` / `prompt` / `text` / `image` / `audio` / `voice` / `mask` /
+`inputs.type` 支持 `string` / `int` / `float` / `prompt` / `text` / `image` / `audio` / `video` / `voice` / `mask` /
 `checkpoint` / `lora`，
 可选 `required`、`default`、`min`、`max`、`multiple_of`、`options_from`、`multiple`。
 校验在 `workflow._check_input`，**未知参数直接拒绝**（防前端塞字段改工作流）；
 manifest 里显式写的 `options` 当枚举用，非法值当场 422（别等引擎跑十分钟才失败）。
-`image` / `audio` / `mask` 的值是 `asset_id`，worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
+`image` / `audio` / `video` / `mask` 的值是 `asset_id`，worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
 
 `multiple: true` 让素材类参数接受 **asset_id 数组**（批量 ASR 一次传多条）。两处配套逻辑：
 worker 逐个解析成路径数组；`cli.command` 里**只有整个参数恰好是一个 `{参数名}` 占位符时**才展开成
@@ -929,6 +955,9 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
   就默认开，先量再开
 - **H3 首跑慢**：12GB 靠 offload，首次要加载 21 GB DiT + 15.7 GB 文本编码器，149 s 里
   只有 45 s 是采样
+- **视频超分是逐帧 2D 放大**：快镜头会闪，补不回细节；真人素材该用 `realesrgan-x4plus`
+  （当前变体固定 animevideov3）；脚本依赖 **PATH 里的 ffmpeg/ffprobe**，没装就启动即报错；
+  4x 的 362 帧会在临时目录写约 1 GB PNG（跑完自动删）
 
 ## 9.1 垃圾回收（TTL）
 
