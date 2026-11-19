@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MaskEditor } from "./MaskEditor";
 import {
   api,
@@ -64,18 +64,24 @@ export default function App() {
   const [tab, setTab] = useState<"jobs" | "gallery" | "matrix">("jobs");
   const [notice, setNotice] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  // 「送去超分」等跨面板预填：切变体后由下面的 effect 合并进表单
+  const prefillRef = useRef<Record<string, string> | null>(null);
 
   const variant = useMemo(
     () => variants.find((v) => `${v.capability}/${v.variant}` === selected),
     [variants, selected]
   );
 
-  // 变体切换时用 manifest 里的默认值重置表单
+  // 变体切换时用 manifest 里的默认值重置表单；跨面板预填（送去超分）优先
   useEffect(() => {
     if (!variant) return;
     const next: Record<string, string> = {};
     for (const [name, spec] of Object.entries(variant.inputs)) {
       next[name] = spec.default === undefined ? "" : String(spec.default);
+    }
+    if (prefillRef.current) {
+      Object.assign(next, prefillRef.current);
+      prefillRef.current = null;
     }
     setForm(next);
     setAssets({});
@@ -214,6 +220,25 @@ export default function App() {
     } catch (e) {
       setNotice(String(e));
     }
+  }
+
+  /**
+   * 把作品直接填进超分表单：值是产物 id（art_），后端解析成服务器上的路径，
+   * 不下载也不重传。表单在另一侧面板，切换变体后 useEffect 会重置表单，
+   * 所以预填值先放 ref，由那个 effect 合并进去。
+   */
+  function sendToUpscale(artifact: Artifact) {
+    const target = "video.upscale/realesrgan-2x";
+    const prefill = { video: artifact.id, scale: form.scale || "2" };
+    if (selected === target) {
+      setForm((prev) => ({ ...prev, ...prefill }));
+      // 表单里已经有旧素材预览的话要清掉，否则显示的是上传的那份而不是选中的作品
+      setAssets({});
+    } else {
+      prefillRef.current = prefill;
+      setSelected(target);
+    }
+    setNotice(`已填入超分：${artifact.path.split(/[\\/]/).pop() ?? artifact.id}`);
   }
 
   /** 删除任务与磁盘产物，不可恢复，所以先确认 */
@@ -445,6 +470,16 @@ export default function App() {
                         <span>{job.variant}</span>
                         <CopyButton text={prompt} />
                       </div>
+                      {/* 直接引用服务器上的产物做超分：不下载、不重传、不多存一份 */}
+                      {artifact.kind === "video" && (
+                        <button
+                          className="card-actions"
+                          title="把这个视频填进超分表单"
+                          onClick={() => sendToUpscale(artifact)}
+                        >
+                          送去超分
+                        </button>
+                      )}
                       <button
                         className="card-del"
                         title="删除这张作品"
@@ -578,6 +613,11 @@ function Field({
           }}
         />
         {uploading && <p className="hint small">上传中…</p>}
+        {value.startsWith("art_") && (
+          <p className="hint small">
+            已引用服务器上的作品（{value}），不下载也不重传；要换本地文件直接重选
+          </p>
+        )}
         {asset && !uploading && (
           <div className="asset-preview">
             {isAudio ? (

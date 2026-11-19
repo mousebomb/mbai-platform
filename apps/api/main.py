@@ -32,6 +32,7 @@ from platform_core.assets import (
 from platform_core.contracts import TERMINAL_STATES, Job, JobRequest, JobState
 from platform_core.openai_compat import install as install_openai_compat
 from platform_core.registry import registry
+from platform_core.refs import ref_path
 from platform_core.service import store, worker
 from platform_core.settings import settings
 from platform_core.pool import resolve_options
@@ -211,15 +212,16 @@ async def create_job(req: JobRequest) -> Job:
         resolved = resolve_params(spec, req.params)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    # 素材类参数在入队前校验存在，避免任务排到一半才发现缺图/缺蒙版
+    # 素材/产物引用在入队前校验存在，避免任务排到一半才发现缺图、缺蒙版或产物已删
     for name, desc in spec.inputs.items():
-        if desc.get("type") in {"image", "audio", "mask"} and name in resolved:
+        kind = desc.get("type")
+        if kind in {"image", "audio", "video", "mask"} and name in resolved:
             # multiple: true 时是数组，逐个校验
-            ids = resolved[name] if isinstance(resolved[name], list) else [resolved[name]]
-            for asset_id in ids:
-                if asset_path(asset_id) is None:
+            refs = resolved[name] if isinstance(resolved[name], list) else [resolved[name]]
+            for ref in refs:
+                if ref_path(store, ref, kind) is None:
                     raise HTTPException(
-                        status_code=422, detail=f"参数 {name} 引用的素材不存在: {asset_id}"
+                        status_code=422, detail=f"参数 {name} 引用的素材不存在: {ref}"
                     )
 
     return store.add(job)

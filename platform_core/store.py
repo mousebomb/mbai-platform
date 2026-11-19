@@ -57,6 +57,19 @@ class JobStore:
             row = self._conn.execute("SELECT payload FROM jobs WHERE id=?", (job_id,)).fetchone()
         return Job.model_validate_json(row["payload"]) if row else None
 
+    def find_artifact(self, artifact_id: str) -> tuple[Job, Artifact] | None:
+        """按产物 id 反查（任务 + 产物）。产物只存在 payload JSON 里，没有单独的表。"""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM jobs WHERE payload LIKE ?", (f"%{artifact_id}%",)
+            ).fetchall()
+        for row in rows:
+            job = Job.model_validate_json(row["payload"])
+            for artifact in job.artifacts:
+                if artifact.id == artifact_id:
+                    return job, artifact
+        return None
+
     def list(
         self, limit: int = 50, state: JobState | None = None, offset: int = 0
     ) -> list[Job]:

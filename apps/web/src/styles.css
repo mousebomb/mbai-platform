@@ -607,10 +607,26 @@ button.ghost:hover {
   cursor: not-allowed;
 }
 
+/* 「送去超分」：卡片底部的次要按钮，不抢删除按钮的位置 */
+.card-actions {
+  margin: 0 10px 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.card-actions:hover {
+  border-color: var(--accent, #6aa9ff);
+  color: var(--accent, #6aa9ff);
+}
+
 /* 删除按钮：常驻但半透明，悬停才显眼；触屏也有足够可见度 */
 .card-del {
   position: absolute;
-  top: 6px;
   right: 6px;
   width: 24px;
   height: 24px;

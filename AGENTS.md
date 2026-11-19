@@ -634,6 +634,10 @@ libx264 重编码 + **原音轨直接 copy**。属于 `cli` 引擎，用平台�
 上限 256 MB）、`detect_video` 魔数校验、`worker` 的 asset_id 解析、`workflow._check_input`
 的类型分支、前端上传控件与 `<video>` 预览。
 
+**作品墙上的视频卡片有「送去超分」**：直接把这个产物（`art_...`）填进超分表单，
+后端用 `refs.ref_path` 解析成原路径，不下载也不复制。切换变体时表单会被默认值重置，
+所以预填值先放 `prefillRef`，由「变体变化」那个 effect 合并进去。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -720,7 +724,14 @@ constants:
 可选 `required`、`default`、`min`、`max`、`multiple_of`、`options_from`、`multiple`。
 校验在 `workflow._check_input`，**未知参数直接拒绝**（防前端塞字段改工作流）；
 manifest 里显式写的 `options` 当枚举用，非法值当场 422（别等引擎跑十分钟才失败）。
-`image` / `audio` / `video` / `mask` 的值是 `asset_id`，worker 执行前解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
+`image` / `audio` / `video` / `mask` 的值可以是两种 id：
+- `ast_...`：上传素材（`POST /v1/assets`）
+- `art_...`：历史产物（作品墙里的视频/图），后端直接解析成磁盘上已有的文件
+
+第二种是为「一键送去超分」这类流程准备的：不下载、不重传、不复制文件。
+解析在 `platform_core/refs.py`，会校验产物 kind 与参数类型一致（视频参数不能塞图片），
+产物被删或 GC 掉之后入队直接 422，不会跑到一半才发现文件没了。
+worker 执行前把它们统一解析成绝对路径；上传白名单见 `assets.ASSET_EXTS`。
 
 `multiple: true` 让素材类参数接受 **asset_id 数组**（批量 ASR 一次传多条）。两处配套逻辑：
 worker 逐个解析成路径数组；`cli.command` 里**只有整个参数恰好是一个 `{参数名}` 占位符时**才展开成
@@ -958,6 +969,8 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
 - **视频超分是逐帧 2D 放大**：快镜头会闪，补不回细节；真人素材该用 `realesrgan-x4plus`
   （当前变体固定 animevideov3）；脚本依赖 **PATH 里的 ffmpeg/ffprobe**，没装就启动即报错；
   4x 的 362 帧会在临时目录写约 1 GB PNG（跑完自动删）
+- **产物引用会随删除失效**：用 `art_...` 起的任务，参数里存的是产物 id，源任务被删或
+  GC 掉之后那条记录就复现不了（入队会 422）。想让历史可重放就先别删源任务
 
 ## 9.1 垃圾回收（TTL）
 
