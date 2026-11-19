@@ -4,7 +4,7 @@ version: v1
 title: "Z-Image Turbo 6B 快速出图"
 description: >-
   8 步 turbo 蒸馏模型，秒级出图档，适合快速预览。
-  cfg 固定 1.0，负向提示词按官方模板 zero-out，不对外暴露。
+  cfg 默认 1.0；negative_prompt 只在 cfg > 1 时生效（cfg=1.0 下负向被完全乘 0）。
 model_id: z-image-turbo
 workflow: workflow.json
 engine: comfy
@@ -14,6 +14,10 @@ inputs:
   prompt:
     type: prompt
     required: true
+  negative_prompt:
+    # 只有 cfg > 1 时生效：cfg=1.0 下 KSampler 完全不用负向分支
+    type: string
+    default: ""
   width:
     type: int
     default: 1024
@@ -46,6 +50,7 @@ inputs:
 
 bindings:
   "4.inputs.text": prompt
+  "5.inputs.text": negative_prompt
   "6.inputs.width": width
   "6.inputs.height": height
   "7.inputs.seed": seed

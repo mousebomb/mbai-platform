@@ -5,7 +5,7 @@ title: "Z-Image Turbo 图生图"
 description: >-
   给一张原图和一句提示词，在保留原图构图的前提下重画（denoise 越低越像原图，1.0 等于重新生成）。
   输入图先按 megapixels 等比缩放到目标像素量（对齐 32 像素，避免 VAE 尺寸不整除），
-  输出尺寸 = 缩放后的输入尺寸。
+  输出尺寸 = 缩放后的输入尺寸。negative_prompt 只在 cfg > 1 时生效。
 model_id: z-image-turbo
 workflow: workflow.json
 engine: comfy
@@ -18,6 +18,10 @@ inputs:
   prompt:
     type: prompt
     required: true
+  negative_prompt:
+    # 只有 cfg > 1 时生效：cfg=1.0 下 KSampler 完全不用负向分支
+    type: string
+    default: ""
   denoise:
     type: float
     default: 0.6
@@ -57,6 +61,7 @@ bindings:
   "6.inputs.image": image
   "7.inputs.megapixels": megapixels
   "4.inputs.text": prompt
+  "5.inputs.text": negative_prompt
   "10.inputs.seed": seed
   "10.inputs.steps": steps
   "10.inputs.cfg": cfg
@@ -64,6 +69,6 @@ bindings:
   "10.inputs.scheduler": scheduler
   "10.inputs.denoise": denoise
   "2.inputs.shift": shift
-  # 负向条件按官方模板 zero-out，不对外暴露
+  # 负向提示词走第二个 CLIPTextEncode（节点 5），空串 = 空负向；cfg=1.0 时不起作用
 constants:
   shift: 3

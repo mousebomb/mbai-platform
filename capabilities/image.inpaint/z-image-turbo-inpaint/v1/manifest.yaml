@@ -21,6 +21,10 @@ inputs:
   prompt:
     type: prompt
     required: true
+  negative_prompt:
+    # 只有 cfg > 1 时生效：cfg=1.0 下 KSampler 完全不用负向分支
+    type: string
+    default: ""
   grow_mask:
     type: int
     default: 8
@@ -54,6 +58,7 @@ bindings:
   "7.inputs.image": mask
   "9.inputs.grow_mask_by": grow_mask
   "4.inputs.text": prompt
+  "5.inputs.text": negative_prompt
   "10.inputs.seed": seed
   "10.inputs.steps": steps
   "10.inputs.cfg": cfg

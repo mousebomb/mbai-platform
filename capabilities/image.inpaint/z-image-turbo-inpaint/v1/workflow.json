@@ -35,12 +35,13 @@
     }
   },
   "5": {
-    "class_type": "ConditioningZeroOut",
+    "class_type": "CLIPTextEncode",
     "inputs": {
-      "conditioning": [
-        "4",
+      "clip": [
+        "3",
         0
-      ]
+      ],
+      "text": ""
     }
   },
   "6": {
