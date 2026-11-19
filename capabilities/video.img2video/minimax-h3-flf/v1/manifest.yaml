@@ -1,0 +1,104 @@
+capability: video.img2video
+variant: minimax-h3-flf
+version: v1
+title: "MiniMax H3 首尾帧（首帧 + 尾帧 → 视频 + 音频）"
+description: >-
+  同时锁首帧和尾帧，中间由模型补运动，一次前向出 24fps 视频和 32kHz 立体声。
+  图里带 KJNodes 的两个显存补丁（默认关）。
+model_id: minimax-h3-fl2va-int8
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  first_frame:
+    type: image
+    required: true
+  last_frame:
+    type: image
+    required: true
+  prompt:
+    type: prompt
+    required: true
+  width:
+    type: int
+    default: 832
+    min: 32
+    max: 2048
+    multiple_of: 32
+  height:
+    type: int
+    default: 480
+    min: 32
+    max: 2048
+    multiple_of: 32
+  length:
+    # 官方 FLF 模板用 124（5s）；首尾帧要留够运动空间，太短会「硬切」
+    type: int
+    default: 124
+    min: 22
+    max: 362
+  steps:
+    type: int
+    default: 4
+    min: 1
+    max: 30
+  seed:
+    type: int
+    default: -1
+  chunk_chunks:
+    # 1 = 关掉 MLP 分块；12GB + 64GB 内存实测开了更慢
+    type: int
+    default: 1
+    min: 1
+    max: 16
+  head_chunks:
+    # 1 = 关掉 attention 分组；OOM 时调到 4
+    type: int
+    default: 1
+    min: 1
+    max: 16
+
+bindings:
+  "18.inputs.image": first_frame
+  "19.inputs.image": last_frame
+  "8.inputs.prompt": prompt
+  "8.inputs.width": width
+  "8.inputs.height": height
+  "8.inputs.length": length
+  "10.inputs.steps": steps
+  "12.inputs.noise_seed": seed
+  "2.inputs.strength_model": lora_strength
+  "3.inputs.chunks": chunk_chunks
+  "3.inputs.seq_threshold": seq_threshold
+  "4.inputs.head_chunks": head_chunks
+  "16.inputs.fps": fps
+
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  turbo_lora: "2.inputs.lora_name"
+  text_encoder: "5.inputs.clip_name"
+  video_vae: "6.inputs.vae_name"
+  audio_vae: "7.inputs.vae_name"
+
+constants:
+  seq_threshold: 4096
+  lora_strength: 1.0
+  fps: 24
+
+guidance:
+  when_to_use: >-
+    两帧构图都已确定，只要中间的运动：产品从 A 转到 B、人物从站姿到回头、
+    镜头从近景推到远景。两端都被钉住，中间几乎不会跑偏，比纯文本可控得多。
+  avoid_when: >-
+    首帧和尾帧主体/机位差异过大（换人、换景）：模型只会硬拉一条轨迹，中间会糊。
+    这种要么分两段生成再接，要么改用参考图模式。
+    另外首帧是**拉伸**到画布、尾帧是 **cover-crop**，两张图比例不一致时两者的
+    处理方式不同，最好先裁成同一比例。
+    还有一点：4 步 turbo 下运动容易「提前到位」。实测 124 帧那条，2.5 s 时已经是
+    尾帧姿态，后 2.6 s 基本静止。要均匀的慢动作就加长 length（上限 362），
+    或把两帧差异做小。
+  cost: >-
+    只比图生视频多一次 VAE encode。832x480/124 帧实测 128.8 s（首单，含重新编译），
+    同尺寸纯文生视频对照 111 s。1280x736 没测过，按文生视频那档 394 s 估算，不要当准数。
+    时长最低 22 帧（约 1 秒），低于这个首尾帧会挤在一起。
