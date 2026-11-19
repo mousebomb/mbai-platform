@@ -552,6 +552,45 @@ D:\AI\models\hf-seethrough        权重缓存 ~9.5 GB（HF_HOME）
 两次手工实测、质量核对（21.9 dB）与交接包 `eval_layers.py` 的两个坑，见
 `docs/see-through-integration.md`。
 
+## 4.7 视频+音频一次出：`video.txt2video/minimax-h3-fl2va`
+
+ComfyUI 0.42 原生带了 H3 的节点，本仓库只做三件事：写权重清单、把官方子图改写成
+API 格式、把 KJNodes 的两个显存 patch 插进模型链。**不需要升 ComfyUI commit**。
+
+```
+UNETLoader → LoraLoaderModelOnly(4步 turbo) → MiniMaxChunkFeedForward → MiniMaxLowVRAMAttention
+   → BasicGuider / BasicScheduler ─→ SamplerCustomAdvanced → VAEDecode ─┐
+   CLIPLoader(minimax) + VAELoader(视频/音频) → MiniMaxH3ImageToVideo ──┘ → VAEDecodeAudio
+   → CreateVideo(24fps) → SaveVideo
+```
+
+三个容易踩的点：
+
+1. **H3 的 latent 同时含视频和音频**，两个 VAE 解同一个 latent；不要用
+   `LTXVSeparateAVLatent`，那是 LTXV 的。
+2. **没有 CFG**：官方图用 `BasicGuider`，不是 `CFGGuider`；`BasicScheduler` 用
+   `simple` + 4 步（配 4step LoRA）。调 `steps` 上限别超过 8，LoRA 是 4 步蒸馏的。
+3. **帧数按 17k+5 网格**：73≈3s，124≈5s，362≈15s。给别的数会被节点向上取整。
+
+KJNodes 固定 commit `aa2b5ea`，由 `bootstrap-comfy.ps1` 第 5 步装。缺 `triton` 只会让
+`PatchTritonVAE` 加载失败，两个 H3 patch 不依赖它；`MiniMaxH3PromptWeight` 也不要碰——
+它懒导入 0.42 里不存在的 `MiniMaxH3ImageConditioning`。
+
+实测（RTX 3060 12GB / 64GB RAM / 4 步，`nvidia-smi` 采样峰值 11.6~11.9 GB）：
+
+| 分辨率 / 帧数 | 耗时 | 采样 |
+|---|---|---|
+| 832×480 / 73（3s） | 首次 149 s，热 52 s | 11.4 s/it |
+| 832×480 / 124（5s） | 111 s | 22.8 s/it |
+| 1280×736 / 124（5s） | 394 s | 87.7 s/it |
+
+**分块节点默认关（`chunk_chunks=1`）**。实测开 4 段 MLP + 4 组 head：73 帧慢约 21%、
+124 帧慢约 5%，峰值显存没有变化——这版 ComfyUI 的 dynamic VRAM 已经把峰值压在
+11.6 GB。它是给「内存更小 / 片更长 / 分辨率更高」的机器兜底的，不是常规档位。
+
+`platform_core/adapters/comfy.py` 的产物收集现在按扩展名判 kind（原来硬编码 `image`），
+所以 `SaveVideo` 出的 mp4 会以 `kind=video` 入库，时长从 mvhd 读。
+
 ## 5. 契约
 
 ### 5.1 HTTP
@@ -817,6 +856,7 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
 | `git push` 卡住 | git 全局代理指向没运行的 `127.0.0.1:7890`，用 `git -c http.proxy= -c https.proxy= ...` |
 | `hf download` 少文件 | 已修：`download-models.py` 一次下一个文件；别手写多 `--include` |
 | `hf download` 退出码 0 但文件只有几百字节 | 那是 LFS **指针文件**：该仓库走 HF Xet 存储，hf-mirror 不代理 Xet。设 `HF_HUB_DISABLE_XET=1` 退回普通 LFS（脚本已内置） |
+| `hf download` 卡在 0 字节 / blob 报 502 | 这台机器上 hf-mirror 的 blob 端点返回 502，直连 `huggingface.co` 又超时；能通的只有 `127.0.0.1:7897` 代理。`download-models.py --endpoint https://huggingface.co` 前先 `$env:HTTPS_PROXY='http://127.0.0.1:7897'`，或直接用 `curl --proxy ... -C -` 续传（PowerShell 的 IE 代理设置不会传给 curl） |
 
 ## 9. 已知限制
 
@@ -866,6 +906,13 @@ uv run python scripts\smoke-test.py <变体>    # 端到端
   （实测 9 字中文 19 s），别把它当低延迟接口用
 - **mp3 输出依赖外部 ffmpeg**：没装时只有 `response_format=wav` 可用，其余返回 501
 - **兼容层的音色是「兜底」不是「等效」**：`alloy` 和 `onyx` 在本平台拿到的可能是同一个音色
+- **MiniMax H3 只接了文生视频**：首帧/尾帧需要 `LoadImage` 节点，而平台的 `optional_nodes`
+  只能摘节点、不能摘输入槽（摘了 `LoadImage` 会留下悬空连接），所以只能做成独立变体，
+  现在没做
+- **H3 的分块节点在本机是净亏**：见 §4.7 的实测，默认 `chunk_chunks=1`；不要因为「低显存」
+  就默认开，先量再开
+- **H3 首跑慢**：12GB 靠 offload，首次要加载 21 GB DiT + 15.7 GB 文本编码器，149 s 里
+  只有 45 s 是采样
 
 ## 9.1 垃圾回收（TTL）
 

@@ -1,0 +1,33 @@
+id: minimax-h3-fl2va-int8
+name: MiniMax H3 FL2VA (pruned int8 + NVFP4 文本编码器)
+family: minimax-h3
+license: minimax-h3-community
+commercial_ok: false
+vram_profile: degraded
+files:
+  diffusion_model: diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+  text_encoder: text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  video_vae: vae/minimax_h3_video_vae_int8_convrot.safetensors
+  audio_vae: vae/minimax_h3_audio_vae_fp32.safetensors
+  turbo_lora: loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors
+# FL2VA = 文生视频 / 首帧 / 尾帧 / 首尾帧，同一次前向里出 24fps 视频 + 32kHz 立体声
+source:
+  type: huggingface
+  repo: Comfy-Org/MiniMax-H3
+  files:
+    - remote: diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+      min_gb: 19.0
+    - remote: text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+      min_gb: 14.0
+    - remote: vae/minimax_h3_video_vae_int8_convrot.safetensors
+      min_gb: 2.4
+    - remote: vae/minimax_h3_audio_vae_fp32.safetensors
+      min_gb: 0.5
+    - remote: loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors
+      min_gb: 1.7
+notes: >-
+  pruned 版靠预计算 adaLN 曲线表把 int8 权重压到 19.5GB（非 pruned int8 是 31.7GB）。
+  文本编码器用 NVFP4 AWQ（14.6GB），官方说明它不需要 Blackwell 显卡；
+  int8_convrot 文本编码器是 25.3GB，除非确认 NVFP4 在这张卡上异常，否则别换。
+  12GB 显存只能靠 offload 跑，实际速度待本机实测后回填。
+  商用授权需向 Comfy 购买（本地生成物同样受限），不是 apache/mit。

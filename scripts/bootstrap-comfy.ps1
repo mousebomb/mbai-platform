@@ -12,6 +12,8 @@
 param(
     [string]$ComfySha = 'd07dff45',
     [string]$ComfyRepo = 'https://github.com/comfyanonymous/ComfyUI.git',
+    # KJNodes 提供 MiniMax H3 的两个显存 patch（MLP 分块 / attention 分 head），video.txt2video 依赖它
+    [string]$KJNodesSha = 'aa2b5ea5e7f61b51f5d26d726f23c1d74e951016',
     [string]$ModelsDir = '',
     # 历史权重目录：只读挂载。不存在的会被跳过，所以空值对新机器无害
     [string[]]$ExtraModelDirs = @(),
@@ -54,10 +56,10 @@ if (Test-Path (Join-Path $comfy '.git')) {
     # 本地已经有目标 commit 就不联网：常见坑是 git 全局代理指向已关闭的本地端口，fetch 必失败
     git -C $comfy cat-file -e "$ComfySha^{commit}" 2>$null
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "[1/4] commit $ComfySha already present, skip fetch"
+        Write-Host "[1/5] commit $ComfySha already present, skip fetch"
     }
     else {
-        Write-Host "[1/4] repo exists, fetch $ComfySha"
+        Write-Host "[1/5] repo exists, fetch $ComfySha"
         git -C $comfy fetch origin
         if ($LASTEXITCODE -ne 0) {
             throw "git fetch failed ($LASTEXITCODE)：检查 git 代理配置（git config --global http.proxy）是否指向了没启动的端口"
@@ -65,7 +67,7 @@ if (Test-Path (Join-Path $comfy '.git')) {
     }
 }
 else {
-    Write-Host '[1/4] clone ComfyUI'
+    Write-Host '[1/5] clone ComfyUI'
     New-Item -ItemType Directory -Force -Path (Split-Path $comfy -Parent) | Out-Null
     # blob:none 只拉提交树，按需取文件，省一半以上流量
     git clone --filter=blob:none $ComfyRepo $comfy
@@ -77,7 +79,7 @@ if ($LASTEXITCODE -ne 0) { throw "checkout $ComfySha failed ($LASTEXITCODE)" }
 Write-Host "      HEAD -> $ComfySha"
 
 # ---------- 2. 生成 extra_model_paths.yaml ----------
-Write-Host '[2/4] write extra_model_paths.yaml'
+Write-Host '[2/5] write extra_model_paths.yaml'
 
 # ComfyUI 认的目录键。少写一个键 = 那类模型直接不可见，所以按全集写
 $keys = @(
@@ -124,22 +126,49 @@ Write-Host "      -> $yamlPath"
 # ---------- 3. venv ----------
 $py = Join-Path $comfy '.venv\Scripts\python.exe'
 if (Test-Path $py) {
-    Write-Host "[3/4] venv exists: $py"
+    Write-Host "[3/5] venv exists: $py"
 }
 else {
-    Write-Host '[3/4] create venv (python 3.12)'
+    Write-Host '[3/5] create venv (python 3.12)'
     uv venv --python 3.12 (Join-Path $comfy '.venv')
     if ($LASTEXITCODE -ne 0) { throw "uv venv failed ($LASTEXITCODE)" }
 }
 
 # ---------- 4. 依赖 ----------
 if ($SkipEnv) {
-    Write-Host '[4/4] skipped (-SkipEnv)'
+    Write-Host '[4/5] skipped (-SkipEnv)'
 }
 else {
-    Write-Host '[4/4] install torch cu130 + requirements'
+    Write-Host '[4/5] install torch cu130 + requirements'
     & (Join-Path $PSScriptRoot 'install-comfy-env.ps1')
     if ($LASTEXITCODE -ne 0) { throw "install-comfy-env failed ($LASTEXITCODE)" }
 }
+
+# ---------- 5. 自定义节点：KJNodes ----------
+# MiniMax H3 的 MiniMaxChunkFeedForward / MiniMaxLowVRAMAttention 在 KJNodes 的
+# nodes/minimax_nodes.py 里。固定 commit 的原因和 ComfyUI 一样：patch 的是
+# comfy.ldm.minimax 内部结构，漂了会静默失效（节点 fail-soft，只打 warning）。
+$customNodes = Join-Path $comfy 'custom_nodes'
+$kj = Join-Path $customNodes 'ComfyUI-KJNodes'
+New-Item -ItemType Directory -Force -Path $customNodes | Out-Null
+if (Test-Path (Join-Path $kj '.git')) {
+    git -C $kj cat-file -e "$KJNodesSha^{commit}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[5/5] fetch KJNodes $KJNodesSha"
+        git -C $kj fetch origin
+        if ($LASTEXITCODE -ne 0) { throw "KJNodes fetch failed ($LASTEXITCODE)" }
+    }
+}
+else {
+    Write-Host '[5/5] clone KJNodes'
+    git clone --filter=blob:none 'https://github.com/kijai/ComfyUI-KJNodes.git' $kj
+    if ($LASTEXITCODE -ne 0) { throw "KJNodes clone failed ($LASTEXITCODE)" }
+}
+git -C $kj checkout --detach $KJNodesSha
+if ($LASTEXITCODE -ne 0) { throw "KJNodes checkout failed ($LASTEXITCODE)" }
+# 缺 triton 只会让 PatchTritonVAE 加载失败，H3 的两个 patch 不依赖它
+uv pip install --python (Join-Path $comfy '.venv\Scripts\python.exe') -r (Join-Path $kj 'requirements.txt')
+if ($LASTEXITCODE -ne 0) { throw "KJNodes requirements failed ($LASTEXITCODE)" }
+Write-Host "      KJNodes HEAD -> $KJNodesSha"
 
 Write-Host 'DONE: next -> uv run python scripts\download-models.py, then scripts\start-engine.ps1'

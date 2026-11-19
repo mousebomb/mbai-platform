@@ -1,0 +1,95 @@
+capability: video.txt2video
+variant: minimax-h3-fl2va
+version: v1
+title: "MiniMax H3 FL2VA（pruned int8 + 分块）"
+description: >-
+  一次前向同时出 24fps 视频和 32kHz 立体声，默认挂 4 步 Turbo LoRA。
+  图里带 KJNodes 的两个显存补丁：MLP 按 token 切块、attention 按 head 切块，数学等价，只降峰值。
+model_id: minimax-h3-fl2va-int8
+workflow: workflow.json
+engine: comfy
+maturity: L1
+
+inputs:
+  prompt:
+    type: prompt
+    required: true
+  width:
+    type: int
+    default: 832
+    min: 32
+    max: 2048
+    multiple_of: 32
+  height:
+    type: int
+    default: 480
+    min: 32
+    max: 2048
+    multiple_of: 32
+  length:
+    # 帧数按 17k+5 网格取：73≈3s，124≈5s，362≈15s（训练范围上限附近）
+    type: int
+    default: 73
+    min: 5
+    max: 362
+  steps:
+    type: int
+    default: 4
+    min: 1
+    max: 30
+  seed:
+    type: int
+    default: -1
+  chunk_chunks:
+    # 1 = 关掉 MLP 分块。本机 12GB 显存 + 64GB 内存实测不需要，开了反而慢
+    type: int
+    default: 1
+    min: 1
+    max: 16
+  head_chunks:
+    # 1 = 关掉 attention 分组。显存更小或片更长时调到 4
+    type: int
+    default: 1
+    min: 1
+    max: 16
+
+bindings:
+  "8.inputs.prompt": prompt
+  "8.inputs.width": width
+  "8.inputs.height": height
+  "8.inputs.length": length
+  "10.inputs.steps": steps
+  "12.inputs.noise_seed": seed
+  "2.inputs.strength_model": lora_strength
+  "3.inputs.chunks": chunk_chunks
+  "3.inputs.seq_threshold": seq_threshold
+  "4.inputs.head_chunks": head_chunks
+  "16.inputs.fps": fps
+
+model_bind:
+  diffusion_model: "1.inputs.unet_name"
+  turbo_lora: "2.inputs.lora_name"
+  text_encoder: "5.inputs.clip_name"
+  video_vae: "6.inputs.vae_name"
+  audio_vae: "7.inputs.vae_name"
+
+constants:
+  seq_threshold: 4096
+  lora_strength: 1.0
+  fps: 24
+
+guidance:
+  when_to_use: >-
+    要带声音的短片：口播、环境声、音效和画面一次生成，不需要再做音画对齐。
+    文本生视频走这里；首帧/尾帧条件要另建变体（同一个 FL2VA 权重，图里加 LoadImage 即可）。
+  avoid_when: >-
+    要 1080p 以上或超过 15 秒：模型训练范围是 768 短边、124~362 帧，
+    再往上要么爆显存要么画面劣化，先低分辨率出片再二采放大。
+    只要静帧就换 image.txt2img，这个模型按秒计费显存。
+  cost: >-
+    RTX 3060 12GB / 64GB 内存实测（4 步，nvidia-smi 采样峰值 11.6~11.9GB）：
+    832x480/73 帧 首次 149s，热 52~63s；832x480/124 帧 111~116s；
+    1280x736/124 帧 394s（采样 87.7 s/it）。
+    分块默认关：同样 73 帧，chunks=4/head_chunks=4 比关掉慢约 21%，
+    124 帧慢约 5%，峰值显存没差别（dynamic VRAM 已经把峰值压在 11.6GB 左右）。
+    只有在更小内存 / 更长片 / 更高分辨率下 OOM 时才把它打开。
